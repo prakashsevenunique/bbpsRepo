@@ -1,0 +1,268 @@
+
+bill info ---------->
+
+
+{"billerId": ["OTME00005XXZ43"]}
+
+
+
+bill fetch ------------->
+
+
+{
+  "agentId": "CC01CC01513515340681",
+  "agentDeviceInfo": {
+    "ip": "192.168.2.73",
+    "initChannel": "AGT",
+    "mac": "01-23-45-67-89-ab"
+  },
+  "customerInfo": {
+    "customerMobile": 9898990084,
+    "customerEmail": "",
+    "customerAdhaar": "",
+    "customerPan": ""
+  },
+  "billerId": "OTME00005XXZ43",
+  "inputParams": {
+    "input": [
+      { "paramName": "a", "paramValue": 10 },
+      { "paramName": "a b", "paramValue": 20 },
+      { "paramName": "a b c", "paramValue": 30 },
+      { "paramName": "a b c d", "paramValue": 40 },
+      { "paramName": "a b c d e", "paramValue": 50 }
+    ]
+  }
+}
+
+
+
+
+bill Pay --------->
+
+{
+    "agentId": "CC01CC01513515340681",
+    "billerAdhoc": true,
+    "agentDeviceInfo": {
+      "ip": "192.168.2.73",
+      "initChannel": "AGT",
+      "mac": "01-23-45-67-89-ab"
+    },
+    "customerInfo": {
+      "customerMobile": "9898990084",
+      "customerEmail": "",
+      "customerAdhaar": "",
+      "customerPan": ""
+    },
+    "billerId": "OTME00005XXZ43",
+    "inputParams": {
+      "input": [
+        {
+          "paramName": "a",
+          "paramValue": "10"
+        },
+        {
+          "paramName": "a b",
+          "paramValue": "20"
+        },
+        {
+          "paramName": "a b c",
+          "paramValue": "30"
+        },
+        {
+          "paramName": "a b c d",
+          "paramValue": "40"
+        },
+        {
+          "paramName": "a b c d e",
+          "paramValue": "50"
+        }
+      ]
+    },
+    "billerResponse": {
+      "billAmount": 100000,
+      "billDate": "2015-06-14",
+      "billNumber": "12303",
+      "billPeriod": "june",
+      "customerName": "BBPS",
+      "dueDate": "2015-06-20",
+      "amountOptions": {
+        "option" : [{
+          "amountName": "Late Payment Fee",
+          "amountValue": 40
+        },
+        {
+          "amountName": "Fixed Charges",
+          "amountValue": 50
+        },
+        {
+          "amountName": "Additional Charges",
+          "amountValue": 60
+        }]
+      }
+    },
+    "additionalInfo": {
+      "info": [
+        {
+          "infoName": "a",
+          "infoValue": "10"
+        },
+        {
+          "infoName": "a b",
+          "infoValue": "20"
+        },
+        {
+          "infoName": "a b c",
+          "infoValue": "30"
+        },
+        {
+          "infoName": "a b c d",
+          "infoValue": "40"
+        }
+      ]
+    },
+    "amountInfo": {
+      "amount": 100000,
+      "currency": 356,
+      "custConvFee": 0,
+      "amountTags": []
+    },
+    "paymentMethod": {
+      "paymentMode": "Cash",
+      "quickPay": "N",
+      "splitPay": "N"
+    },
+    "paymentInfo": {
+      "info": [
+        {
+          "infoName": "Remarks",
+          "infoValue": "Received"
+        }
+      ]
+    }
+  }
+
+bill pay (Quick pay) ----------->
+
+{
+  "agentId": "CC01CC01513515340681",
+  "billerAdhoc": true,
+  "agentDeviceInfo": {
+    "ip": "192.168.2.73",
+    "initChannel": "AGT",
+    "mac": "01-23-45-67-89-ab"
+  },
+  "customerInfo": {
+    "customerMobile": "9898990083",
+    "customerEmail": "",
+    "customerAdhaar": "",
+    "customerPan": ""
+  },
+  "billerId": "OCNS00000TMN02",
+  "inputParams": {
+    "input": [
+     {
+        "paramName": "a",
+        "paramValue": "10"
+      },
+      {
+        "paramName": "a b",
+        "paramValue": "20"
+      },
+      {
+        "paramName": "a b c",
+        "paramValue": "30"
+      },
+      {
+        "paramName": "a b c d",
+        "paramValue": "40"
+      },
+      {
+        "paramName": "a b c d e",
+        "paramValue": "50"
+      }
+    ]
+  },
+  "amountInfo": {
+    "amount": 100000,
+    "currency": 356,
+    "custConvFee": 0,
+    "amountTags": []
+  },
+  "paymentMethod": {
+    "paymentMode": "Cash",
+    "quickPay": "Y",
+    "splitPay": "N"
+  },
+  "paymentInfo": {
+    "info": [
+      {
+        "infoName": "Remarks",
+        "infoValue": "Received"
+      }
+    ]
+  }
+}
+
+
+TRANSACTION STATUS
+(TRANS_REF_ID) -------------->
+
+{
+  "transactionStatusReq": {
+    "trackType": "TRANS_REF_ID",
+    "trackValue": "CC0175192009"
+  }
+}
+
+
+TRANSACTION STATUS
+(REQUEST_ID) ----------->
+
+
+{"trackingType":"REQUEST_ID","trackingValue":"0ZvBAr4TR3739KSfHFVgKSiBNxq50801456"}
+
+
+COMPLAINT REGISTRATION
+(TRANSACTION) --------------->
+
+{
+  "complaintType": "Transaction",
+  "complainDesc": "Testing Complaint registration through API",
+  "txnRefId": "CC015079BAAE00073048",
+  "complaintDisposition": "Transaction Successful, account not updated"
+}
+
+
+COMPLAINT TRACKING ---------->
+
+{
+    "complaintType": "Transaction",
+    "complaintId": "CC0125079106647"
+  }
+
+
+
+Bill Validation -------------->
+
+{
+  "agentId": "CC01CC01513515340681",
+  "agentDeviceInfo": {
+    "ip": "192.168.2.73",
+    "initChannel": "AGT",
+    "mac": "01-23-45-67-89-ab"
+  },
+  "billerId": "OTNS00005XXZ43",
+  "inputParams": {
+    "input": [
+      {
+        "paramName": "Mobile Number",
+        "paramValue": "8268463490"
+      },
+      {
+        "paramName": "Subscriber ID",
+        "paramValue": "728392156"
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,44 @@
+bill pay------->
+
+{"responseCode":"204","vErrorRootVO":{"error":[{"errorCode":"E210","errorMessage":"No fetch data found for given ref id."}]}}
+
+
+bill validation ----------->
+
+{"billValidationRequest":{"agentId":"CC01CC01513515340681","billerId":"OTNS00005XXZ43","inputParams":{"input":[{"paaramName":"a","paramValue":"10"},{"paramName":"a b","paramValue":"20"},{"paramName":"a b c","paramValue":"30"},{"paramName":"a b c d","paramValue":"40"},{"paramName":"a b c d e","paramValue":"50"}]}}}
+
+F578FDDAA6483030FD5E187E6C243E316A46B6BB83BBAC23F72530A90850A1D2EFCEAFA377528ADEDB68B56D1DB1D49C5099265275F9523060EBE7E0B18825A4554F5CFBC7F09D731AAAF1754C549FE08C8746FED127468BE6BBB8467E1F14829F7892E12CD85C675D42735E62BC84F627BA54A739813D7BB7585F60B1CBA2EE91672741DD225FF9C214AEE46018C148EB02F9E9E3462D5EB11FE2FF091822CEBD9449244F4BC1BD084F5AAB37F01753EF3F605B900182AD27137FA8C3D5E48813726FDC9FE2EC1E8DBAB9B538575BDFDEF2E9EEDCFBDEC6801BE0832AB67CDA24271CA8792133059911DB8AFD49C157B9B570B4923E009B96C58ADD035202E105DA3EBCCC2B429E74F1FC068A0006A2B684ADBECFF07C0182F87BBB0657802BA4E50CEFBE7DAF48132DD11C9046C1E08AB7F41D80DB014CB66D49627EA9E7F6
+
+{"responseCode":"200","responseReason":"Failure","complianceCode":"VE001","complianceReason":"Agent ID required"}
+
+
+
+
+
+
+
+{"responseCode":"000","inputParams":{"input":[{"paramName":"a b c d e","paramValue":"50"},{"paramName":"a b c d","paramValue":"40"},{"paramName":"a b c","paramValue":"30"},{"paramName":"a b","paramValue":"20"},{"paramName":"a","paramValue":"10"}]},"billerResponse":{"billAmount":"100000","billDate":"2015-06-14","billNumber":"12303","billPeriod":"june","customerName":"BBPS","dueDate":"2015-06-20","amountOptions":{"option":[{"amountName":"Late Payment Fee","amountValue":"40"},{"amountName":"Fixed Charges","amountValue":"50"},{"amountName":"Additional Charges","amountValue":"60"}]}},"additionalInfo":{"info":[{"infoName":"a","infoValue":"10"},{"infoName":"a b","infoValue":"20"},{"infoName":"a b c","infoValue":"30"},{"infoName":"a b c d","infoValue":"40"}]}}
+
+
+bill pay response ----------->
+
+{"responseCode":"000","responseReason":"Successful","txnRefId":"CC015079BAAE00073048","txnRespType":"FORWARD TYPE RESPONSE","respAmount":"100000","respBillDate":"2016-07-01","respBillNumber":"12303037","respBillPeriod":"Jul","custConvFee":"0","respCustomerName":"Ashish","respDueDate":"2016-07-30","inputParams":{"input":[{"paramName":"a","paramValue":"10"},{"paramName":"a b","paramValue":"20"},{"paramName":"a b c","paramValue":"30"},{"paramName":"a b c d","paramValue":"40"},{"paramName":"a b c d e","paramValue":"50"}]},"approvalRefNumber":"12345037","requestId":"9874563211y686678998845670112345624"}
+
+transactionStatusReq---------->
+
+{"responseCode":"000","responseReason":"SUCCESS","statusRequestId":"9874563211y686678998845670112345612","txnList":[{"agentId":"CC01CC01513515340681","amount":"100000","billerId":"OTME00005XXZ43","txnDate":"2025-03-20T16:48:48+04:48","txnReferenceId":"CC015079BAAE00073048","txnStatus":"SUCCESS","mobile":"9898990084","approvalRefNumber":"12345037","txnRespType":"FORWARD TYPE RESPONSE","custConvFee":"0","respBillNumber":"12303","respBillPeriod":"june","respCustomerName":"BBPS","respDueDate":"2015-06-20","payRequestId":"9874563211y686678998845670112345624","inputList":[{"paramName":"a b c d e","paramValue":"50"},{"paramName":"a b c d","paramValue":"40"},{"paramName":"a b c","paramValue":"30"},{"paramName":"a b","paramValue":"20"},{"paramName":"a","paramValue":"10"}]}]}
+
+
+compliant register--------->
+
+
+{"complaintAssigned":"XYZ Bank","complaintId":"CC0125079106647","complaintResponseCode":"000","complaintResponseReason":"SUCCESS","transactionDetailsVO":{}}
+
+
+
+complaint traking------------->
+
+{"complaintAssigned":"XYZ Bank","complaintId":"CC0125079106647","complaintStatus":"ASSIGNED","complaintResponseCode":"000","complaintResponseReason":"SUCCESS","complaintRemarks":"Testing Complaint registration through API","transactionDetailsVO":{}}
+
+
+
