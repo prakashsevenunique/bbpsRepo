@@ -40,8 +40,8 @@ bower_components/
 .node_repl_history
 
 # Environment variables
-.env
-.env.*
+# .env
+# .env.*
 
 # IDE directories and files
 .idea/

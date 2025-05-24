@@ -59,33 +59,26 @@ app.use("/api/Dmt", DmtRoutes);
 app.use("/api/Busbooking", BusBooking);
 
 
-// admin 
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/commission", commissionRoutes);
 
 app.get("/", (req, res) => res.json("welcome"));
 
 const url = "mongodb://localhost:27017/";
-// Connect to MongoDB
 mongoose
-  .connect(process.env.MONGO_URI || url, { useNewUrlParser: true, useUnifiedTopology: true })
+  .connect(process.env.MONGO_URI || url)
   .then(async () => {
     console.log("Connected to MongoDB");
-
-    // Ensure a default merchant account exists
     const merchant = await Merchant.findOne();
     if (!merchant) {
       await Merchant.create({ name: "Default Merchant", accountBalance: 0 });
       console.log("Default merchant account created.");
     }
-    // ✅ Start Cron Jobs After DB Connection
     cronJobs;
   })
   .catch((err) => {
     console.error("Error connecting to MongoDB:", err.message);
-    // process.exit(1); // Exit process on DB connection failure
   });
 
-// Start the server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
