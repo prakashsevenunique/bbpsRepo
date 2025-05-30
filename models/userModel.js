@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { format } = require('date-fns');
+const { format, min } = require('date-fns');
 
 const userSchema = new mongoose.Schema(
   {
@@ -22,6 +22,33 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     },
+    address: {
+      fullAddress: {
+        type: String,
+        trim: true,
+      },
+      city: {
+        type: String,
+        trim: true,
+      },
+      state: {
+        type: String,
+        trim: true,
+      },
+      country: {
+        type: String,
+        default: 'India',
+        trim: true,
+      }
+    },
+    pinCode: {
+      type: String,
+      trim: true,
+    },
+    isAccountActive: {
+      type: Boolean,
+      default: false
+    },
     mpin: {
       type: Number,
       required: true,
@@ -31,7 +58,7 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
-      match: /^[6-9]\d{9}$/, // for Indian 10-digit mobile numbers
+      match: /^[6-9]\d{9}$/,
     },
     isKycVerified: {
       type: Boolean,
@@ -42,8 +69,26 @@ const userSchema = new mongoose.Schema(
       required: false,
     },
     bankDetails: {
-      type: Object,
-      required: false,
+      accountHolderName: {
+        type: String,
+        trim: true
+      },
+      accountNumber: {
+        type: String,
+        trim: true
+      },
+      ifscCode: {
+        type: String,
+        trim: true
+      },
+      bankName: {
+        type: String,
+        trim: true
+      },
+      branchName: {
+        type: String,
+        trim: true
+      }
     },
     aadharDetails: {
       type: Object,
@@ -51,7 +96,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['User', 'Retailer', 'Distributor', 'Admin'],
+      enum: ['User', 'Retailer', 'Distributor', 'ApiPartner', 'Admin'],
       default: 'User',
     },
     status: {
@@ -63,49 +108,46 @@ const userSchema = new mongoose.Schema(
       ref: 'CommissionPackage',
       default: null,
     },
+    cappingMoney: {
+      type: Number,
+      default: 0,
+    },
+    mainWallet: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    eWallet: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    meta: {
+      type: Map,
+      of: String,
+      default: {},
+    },
     clientId: {
       type: String,
       unique: true,
       required: true,
+      immuable: true,
       default: () => crypto.randomBytes(16).toString('hex'),
     },
     clientSecret: {
       type: String,
       required: true,
+      immuable: true,
+      select: false, // Exclude from queries by default
       default: () => crypto.randomBytes(32).toString('hex'),
-    },
-    apiToken: {
-      type: String,
-      unique: true,
-      default: null,
-    },
+    }
   },
   {
     timestamps: true,
     toJSON: { getters: true },
-    toObject: { getters: true },
+    toObject: { getters: true }
   }
 );
 
-userSchema.path('createdAt').get(function (val) {
-  return format(val, 'MMM dd, yyyy h:mma');
-});
-
-userSchema.path('updatedAt').get(function (val) {
-  return format(val, 'MMM dd, yyyy h:mma');
-});
-
-userSchema.methods.generateApiToken = function () {
-  const payload = {
-    sub: this._id.toString(),
-    clientId: this.clientId,
-  };
-  const options = {
-    algorithm: 'HS256',
-  };
-  const token = jwt.sign(payload, this.clientSecret, options);
-  this.apiToken = token;
-  return token;
-};
 
 module.exports = mongoose.model('User', userSchema);

@@ -1,22 +1,51 @@
 const express = require("express");
-
-const {payIn, callbackPayIn, getPayInRes, payInReportAllUsers, payInReportForUser, payinUserCount} = require('../controllers/payIn');
-const {payOut, adminAction, callbackPayout, payOutReportAllUsers, payOutReportForUser, payOutUserCount} = require("../controllers/payOut");
-const {combinedReportForUser} = require("../controllers/combinedReportForUser ");
 const router = express.Router();
+const Joi = require("joi");
+const { celebrate } = require("celebrate");
 
-router.post("/payIn", payIn);
-router.post("/payOut", payOut);
-router.post("/payout/admin-action", adminAction);
-router.get("/payIn/response", getPayInRes);
-router.post("/payIn/callback", callbackPayIn);
-router.post("/payOut/callback", callbackPayout);
-router.get("/payIn/report", payInReportAllUsers);
-router.get("/payOut/report", payOutReportAllUsers);
-router.get("/payIn/user/report", payInReportForUser);
-router.get("/payOut/user/report", payOutReportForUser);
-router.get("/user/report", combinedReportForUser);
-router.get("/payIn/total-sums/:userId", payinUserCount);
-router.get("/payOut/total-sums/:userId", payOutUserCount);
+const createPaymentRequestSchema = celebrate({
+    body: Joi.object({
+        reference: Joi.string().required().trim(),
+        type: Joi.string().valid("Credit", "Debit").required(),
+        mode: Joi.string()
+            .valid(
+                "UPI",
+                "Bank Transfer",
+                "NEFT",
+                "RTGS",
+                "IMPS",
+                "Cash",
+                "Wallet",
+                "Cheque",
+                "Card",
+                "Other"
+            )
+            .required(),
+        amount: Joi.number().positive().min(0.01).required(),
+        description: Joi.string().optional().allow("").trim(),
+        status: Joi.string()
+            .valid("Pending", "Processing", "Completed", "Failed", "Cancelled", "Refunded")
+            .default("Pending"),
+        bankDetails: Joi.object({
+            accountName: Joi.string().optional().trim(),
+            accountNumber: Joi.string().optional().trim(),
+            ifscCode: Joi.string().optional().uppercase().trim(),
+            bankName: Joi.string().optional().trim(),
+            branch: Joi.string().optional().trim(),
+        }).optional(),
+        upiDetails: Joi.object({
+            vpa: Joi.string().lowercase().trim().optional(),
+        }).optional(),
+        utr: Joi.string().optional().trim(),
+        remark: Joi.string().optional().trim(),
+    }),
+});
+
+
+const paymentRequestController = require("../controllers/paymentRequestController.js");
+
+router.post("/", createPaymentRequestSchema, paymentRequestController.createPaymentRequest);
+router.get("/:id", paymentRequestController.getPaymentRequestById);
+router.get("/", paymentRequestController.listPaymentRequests);
 
 module.exports = router;

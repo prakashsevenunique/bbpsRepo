@@ -1,4 +1,3 @@
-// controllers/rechargeController.js
 const {
   rechargeValidation,
   checkRechargeStatus,
@@ -6,7 +5,6 @@ const {
   viewbill,
   recharge,
 } = require("../services/rechargeService");
-const rechargeService = require("../services/rechargeService");
 
 const validate = async (req, res) => {
   const { uid, password, amt, cir, cn, op, adParams } = req.body;
@@ -35,7 +33,6 @@ const validate = async (req, res) => {
   }
 };
 
-// Function to initiate recharge
 const initiateRecharge = async (req, res) => {
   const { uid, pwd, cn, op, cir, amt, reqid } = req.body;
 

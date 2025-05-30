@@ -1,18 +1,62 @@
 const mongoose = require('mongoose');
 
-const CommissionPackageSchema = new mongoose.Schema({
-  userId: String,
-  packageName: String,
-  serviceType: { type: String, enum: ['Payout', 'Payin', 'Money Transfer'] },
-  minAmount: String,
-  maxAmount: String,
-  charges: { type: String, required: false },
-  commission: { type: String, required: false },
-  distributorCommission: { type: String, required: false },
-  gst: { type: String, required: false },
-  tds: { type: String, required: false },
-  type: { type: String, enum: ['percentage', 'flat'], required: false }
-});
+const CommissionPackageSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    description: {
+      type: String,
+    },
+    user_id:
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    commissions: [
+      {
+        service: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Service',
+          required: true,
+        },
+        commissionType: {
+          type: String,
+          enum: ['flat', 'percentage'],
+          required: true,
+        },
+        value: {
+          type: Number,
+          required: true,
+        },
+        minAmount: {
+          type: Number,
+        },
+        maxAmount: {
+          type: Number,
+        },
+        belowMinAmount: {
+          commissionType: {
+            type: String,
+            enum: ['flat', 'percentage'],
+          },
+          value: {
+            type: Number,
+          },
+        },
+      },
+    ],
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    remarks: {
+      type: String,
+    },
+  },
+  { timestamps: true }
+);
 
-const commission = mongoose.model('Commission', CommissionPackageSchema);
-module.exports = commission;
+module.exports = mongoose.model('CommissionPackage', CommissionPackageSchema);

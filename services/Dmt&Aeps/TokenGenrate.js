@@ -54,10 +54,6 @@ function generatePaysprintJWT() {
 
 
 
-
-console.log('generated....',generatePaysprintJWT())
-
-
 function encryptPidData(piddata, key, iv) {
   const cipher = crypto.createCipheriv('aes-128-cbc', Buffer.from(key, 'utf8'), Buffer.from(iv, 'utf8'));
   let encrypted = cipher.update(piddata, 'utf8', 'base64');

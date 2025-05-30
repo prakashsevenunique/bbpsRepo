@@ -9,10 +9,6 @@ const sendEmail = async ({ fullName, email, number, message }) => {
       pass: process.env.EMAIL_PASS,
     },
   });
-  //console.log("email user", process.env.EMAIL_USER);
-  //console.log("email pass", process.env.EMAIL_PASS);
-  //console.log("WEBSITE_EMAIL", process.env.WEBSITE_EMAIL);
-  
 
   let mailOptions = {
     from: process.env.EMAIL_USER,

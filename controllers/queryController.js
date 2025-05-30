@@ -1,26 +1,77 @@
-const Form = require("../models/queryModel");
-const sendEmail = require("../services/queryService");
+const Form = require('../models/queryModel.js');
 
-const submitForm = async (req, res) => {
+// Create a new form submission
+exports.createForm = async (req, res) => {
   try {
-    const { fullName, email, number, message } = req.body;
+    const { fullName, email, mobileNumber, regarding, message } = req.body;
 
-    if (!fullName || !email || !number) {
-      return res.status(400).json({ error: "Full name, email, and number are required." });
-    }
+    const newForm = new Form({
+      fullName,
+      email,
+      mobileNumber,
+      regarding,
+      message
+    });
 
-    // Save form details in MongoDB
-    const newForm = new Form({ fullName, email, number, message });
     await newForm.save();
-
-    // Send Email to Office
-    await sendEmail({ fullName, email, number, message });
-
-    res.status(201).json({ success: true, message: "Form submitted successfully" });
-  } catch (error) {
-    console.error("Error submitting form:", error);
-    res.status(500).json({ error: "Server error" });
+    res.status(201).json({ success: true, data: newForm });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
 };
 
-module.exports = { submitForm };
+// Get all forms
+exports.getAllForms = async (req, res) => {
+  try {
+    const forms = await Form.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, count: forms.length, data: forms });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Server Error' });
+  }
+};
+
+// Get single form by ID
+exports.getFormById = async (req, res) => {
+  try {
+    const form = await Form.findById(req.params.id);
+    if (!form) {
+      return res.status(404).json({ success: false, error: 'Form not found' });
+    }
+    res.status(200).json({ success: true, data: form });
+  } catch (err) {
+    res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+};
+
+// Update a form
+exports.updateForm = async (req, res) => {
+  try {
+    const form = await Form.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true
+    });
+
+    if (!form) {
+      return res.status(404).json({ success: false, error: 'Form not found' });
+    }
+
+    res.status(200).json({ success: true, data: form });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+// Delete a form
+exports.deleteForm = async (req, res) => {
+  try {
+    const form = await Form.findByIdAndDelete(req.params.id);
+
+    if (!form) {
+      return res.status(404).json({ success: false, error: 'Form not found' });
+    }
+
+    res.status(200).json({ success: true, data: {} });
+  } catch (err) {
+    res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+};

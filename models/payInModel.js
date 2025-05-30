@@ -1,6 +1,4 @@
 const mongoose = require("mongoose");
-const { format } = require("date-fns");  // Importing date-fns
-
 const Schema = mongoose.Schema;
 
 const payInSchema = new mongoose.Schema(
@@ -12,80 +10,65 @@ const payInSchema = new mongoose.Schema(
     },
     amount: {
       type: Number,
-      required: true
+      required: true,
+      min: [0, 'Amount must be greater than or equal to zero'], 
     },
     reference: {
       type: String,
-      required: false
+      required: true,
+      unique: true,
     },
     name: {
       type: String,
-      required: true
+      required: true,
+      trim: true,
     },
     mobile: {
       type: Number,
-      required: true
+      required: true,
+      validate: {
+        validator: (v) => /\d{10}/.test(v), 
+        message: 'Invalid mobile number',
+      },
     },
     email: {
       type: String,
-      required: true
+      required: true,
+      lowercase: true,
+      match: [/\S+@\S+\.\S+/, 'Please enter a valid email address'], // Simple email format validation
     },
     status: {
       type: String,
-      enum: ["Pending", "Approved", "Failed"], 
+      enum: ["Pending", "Success", "Failed"],
       default: "Pending",
-      required: false
+      required: true,
     },
     utr: {
       type: String,
       required: false,
     },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-      get: (val) => format(val, "MMM dd, yyyy h:mma")  // Applying custom format to the createdAt field
-    },
-    transferMode: {
-      type: String,
-      required: false
-    },
-    adminAction: {
-      type: String,
-      required: false
-    },
     remark: {
       type: String,
       required: false,
-    },
-    adminCommission: {
-      type: String,
-      required: false,
-    },
-    distributorCommission: {
-      type: String,
-      required: false,
+      trim: true,
     },
     charges: {
-      type: String,
-      required: false,
-    },
-    gst: {
-      type: String,
-      required: false,
-    },
-    tds: {
-      type: String,
-      required: false,
-    },
-    netAmount: {
-      type: String,
-      required: false
-    },
+      type: Number,
+      required: true,
+      default: 0,
+      min: [0, 'Charges must be greater than or equal to zero'],
+    }
   },
   {
-    toJSON: { getters: true },  // Ensuring that getters are applied when converting to JSON
-    toObject: { getters: true }  // Ensuring that getters are applied when converting to Object
+    timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true },
   }
 );
+
+payInSchema.pre('save', function (next) {
+  this.updatedAt = Date.now();
+  next();
+});
 
 module.exports = mongoose.model("PayIn", payInSchema);

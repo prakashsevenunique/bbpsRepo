@@ -1,16 +1,21 @@
-const jwt = require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
 
-const generateJwtToken = (userId) => {
+const generateJwtToken = (userId, role, mobileNumber) => {
   try {
-    const token = jwt.sign(
-      { userId }, // Payload containing the user's ID
-      process.env.JWT_SECRET, // Secret key from `.env`
-      { expiresIn: "7d" } // Token expiration time
-    );
+    const payload = {
+      id: userId,
+      role,
+      mobileNumber,
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: '30d',
+    });
+
     return token;
   } catch (error) {
-    console.error("Error generating JWT:", error);
-    throw new Error("Failed to generate token");
+    console.error('Error generating JWT:', error);
+    throw new Error('Failed to generate token');
   }
 };
 

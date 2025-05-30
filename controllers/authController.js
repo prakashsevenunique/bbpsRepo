@@ -1,16 +1,9 @@
-const User = require("../models/userModel");
-const bcrypt = require("bcrypt");
-const Wallet = require("../models/walletModel");
+const User = require("../models/userModel.js");
 const { generateOtp, verifyOtp } = require("../services/otpService");
 const { sendOtp } = require("../services/smsService");
 const { generateJwtToken } = require("../services/jwtService");
-const { default: axios } = require("axios");
-require("dotenv").config();
-const token = process.env.TOKEN;
-const mongoose = require("mongoose");
-//console.log(token);
+const { parse } = require('json2csv');
 
-// Send OTP to the user
 const sendOtpController = async (req, res) => {
   try {
     const { mobileNumber } = req.body;
@@ -18,14 +11,8 @@ const sendOtpController = async (req, res) => {
     if (!mobileNumber) {
       return res.status(400).json({ message: "Mobile number is required" });
     }
-
-    // Generate OTP
     const otp = await generateOtp(mobileNumber);
-
-    // Send OTP via SMS
     const smsResult = await sendOtp(mobileNumber, otp);
-    //console.log("otp", smsResult);
-
     if (smsResult.success) {
       return res.status(200).json({ message: "OTP sent successfully" });
     } else {
@@ -36,8 +23,7 @@ const sendOtpController = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
- 
-// Verify OTP controller
+
 const verifyOTPController = async (req, res) => {
   try {
     const { mobileNumber, otp } = req.body;
@@ -45,24 +31,20 @@ const verifyOTPController = async (req, res) => {
     if (!mobileNumber || !otp) {
       return res.status(400).json({ message: "Mobile number and OTP are required" });
     }
-
-    // Verify OTP
     const verificationResult = await verifyOtp(mobileNumber, otp);
-
     if (!verificationResult.success) {
       return res.status(400).json({ message: verificationResult.message });
     }
 
     return res.status(200).json({
-      message: "OTP verified successful",
+      message: "OTP verified successfully",
     });
   } catch (error) {
     console.error("Error in verifyOTPController:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
-}
+};
 
-// Verify OTP and login user
 const loginController = async (req, res) => {
   try {
     const { mobileNumber, otp } = req.body;
@@ -70,33 +52,27 @@ const loginController = async (req, res) => {
     if (!mobileNumber || !otp) {
       return res.status(400).json({ message: "Mobile number and OTP are required" });
     }
-
-    // Verify OTP
     const verificationResult = await verifyOtp(mobileNumber, otp);
-
     if (!verificationResult.success) {
       return res.status(400).json({ message: verificationResult.message });
     }
-
     let user = await User.findOne({ mobileNumber });
 
-
     if (!user) {
-      return res.status(404).json("No user found");
+      return res.status(404).json({ message: "No user found" });
+    }
+    if (user.status === false) {
+      return res.status(403).json({ message: "Your account is blocked. Please contact support." });
     }
 
-    const token = generateJwtToken(user._id);
-
-    user.token = token;
-    await user.save();
+    const token = generateJwtToken(user._id, user.role, user.mobileNumber);
 
     return res.status(200).json({
       message: "Login successful",
       user: {
         id: user._id,
         mobileNumber: user.mobileNumber,
-        token: user.token,
-        role: user.role
+        token
       },
     });
   } catch (error) {
@@ -107,36 +83,26 @@ const loginController = async (req, res) => {
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, mobileNumber, mpin, role, distributorId} = req.body;
+    const { name, email, mobileNumber, address, pinCode, mpin, role, distributorId } = req.body;
 
-    let user = await User.findOne({ email }); 
+    let user = await User.findOne({ email, mobileNumber });
 
     if (user) {
-      return res.status(400).json("User already exists");
+      return res.status(400).json({ message: "User already exists" });
     }
+    let adminUser;
+    if (!distributorId) {
+      adminUser = await User.findOne({ role: 'Admin' });
+    }
+    let NewUser = await User.create({ name, email, mobileNumber, address, pinCode, mpin, role, isAccountActive: role == "User" ? true : false, distributorId: distributorId ? distributorId : adminUser?._id });
 
-    // let crptPass = await bcrypt
-    //   .hash(password, 10)
-    //   .then((hash) => {
-    //     return hash;
-    //   })
-    //   .catch((err) => console.error("Error hashing password:", err.message));
-
-if(role === 'Retailer'){
-  user = await User.create({ name, email, mobileNumber, mpin, role, distributorId });
-}else{
-  user = await User.create({ name, email, mobileNumber, mpin, role });
-}
-   
-
-    // Initialize wallcsccschdakkskdh priya
-    await Wallet.create({ userId: user._id, balance: 0 });
-    
-    await user.save();
+    let newUser = await NewUser.save();
+    const token = generateJwtToken(newUser._id, newUser.role, newUser.mobileNumber);
 
     return res.status(200).json({
       message: "Registration successful",
-      user: user,
+      newUser,
+      token
     });
   } catch (error) {
     console.error("Error in registerUser controller:", error);
@@ -146,28 +112,25 @@ if(role === 'Retailer'){
 
 const updateProfileController = async (req, res) => {
   try {
-    const { userId, name, email, mobileNumber} = req.body;
+    const { name, email, mpin, bankDetails, address, pinCode } = req.body;
 
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
-
-    let user = await User.findById(userId);
-
+    let user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-
-    // Update the user profile with new name and email 
-    if (name) {
-      user.name = name;
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (mpin) user.mpin = mpin;
+    if (bankDetails) user.bankDetails = bankDetails;
+    if (address) {
+      user.address = {
+        fullAddress: address.fullAddress,
+        city: address.city,
+        state: address.state,
+        country: address.country || 'India'
+      };
     }
-    if (email) {
-      user.email = email;
-    }
-    if (mobileNumber) {
-      user.mobileNumber = mobileNumber;
-    }
+    if (pinCode) user.pinCode = pinCode;
 
     await user.save();
 
@@ -175,7 +138,6 @@ const updateProfileController = async (req, res) => {
       message: "Profile updated successfully",
       user: {
         id: user._id,
-        mobileNumber: user.mobileNumber,
         name: user.name,
         email: user.email,
       },
@@ -188,42 +150,176 @@ const updateProfileController = async (req, res) => {
 
 const getUserController = async (req, res) => {
   try {
-    let user = await User.findById(req.params.id).populate("plan"); // ✅ "ServicePlan" को populate करें
-
+    let user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: "No user found" });
     }
-
-    user = user.toObject(); // Convert Mongoose document to plain object
-    console.log("User is: ", user);
-
     return res.status(200).json(user);
   } catch (error) {
     console.error("Error in getUserController:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
-}; 
+};
 
-const getRetailersByDistributor = async (req, res) => {
+const getUsersWithFilters = async (req, res) => {
   try {
-    const distributorId = new mongoose.Types.ObjectId(req.params.id);
+    const {
+      keyword,
+      role,
+      from,
+      to,
+      sortBy = 'name',
+      order = 'asc',
+      page = 1,
+      limit = 10,
+      exportCsv = 'false'
+    } = req.query;
 
-    const retailers = await User.find({ distributorId, role: 'Retailer' });
+    const filter = {};
 
-    res.status(200).json({ success: true, data: retailers });
+    if (keyword) {
+      filter.$or = [
+        { name: { $regex: keyword, $options: 'i' } },
+        { email: { $regex: keyword, $options: 'i' } },
+      ];
+    }
+
+    if (role) {
+      filter.role = role;
+    }
+
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) filter.createdAt.$lte = new Date(to);
+    }
+
+    const loggedInUser = req.user;
+
+    if (loggedInUser.role === 'Distributor') {
+      filter.distributorId = loggedInUser._id;
+    }
+
+    const sort = {};
+    sort[sortBy] = order === 'asc' ? 1 : -1;
+
+    const skip = (page - 1) * limit;
+
+    const users = await User.find(filter)
+      .sort(sort)
+      .skip(exportCsv === 'true' ? 0 : skip)
+      .limit(exportCsv === 'true' ? Number.MAX_SAFE_INTEGER : parseInt(limit));
+
+    if (exportCsv === 'true') {
+      const fields = [
+        '_id',
+        'name',
+        'email',
+        'role',
+        'mobileNumber',
+        'status',
+        'distributorId',
+        'isKycVerified',
+        'mainWallet',
+        'eWallet',
+        'cappingMoney',
+        'createdAt',
+        'updatedAt'
+      ];
+
+      const csv = parse(users, { fields });
+      res.header('Content-Type', 'text/csv');
+      res.header('Content-Disposition', 'attachment; filename=users.csv');
+      return res.send(csv);
+    }
+    const totalUsers = await User.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      data: users,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalUsers / limit),
+        totalUsers,
+      },
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    console.error("Error in getUsersWithFilters:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 
+const updateUserStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const userId = req.params.id;
+
+    if (!userId || status === undefined) {
+      return res.status(400).json({ message: "User ID and status are required" });
+    }
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    user.status = status;
+    await user.save();
+    return res.status(200).json({
+      message: "User status updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        status: user.status,
+      },
+    });
+  } catch (error) {
+    console.error("Error in updateUserStatus:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const updateUserDetails = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const { role, status, isAccountActive, commissionPackage, cappingMoney, mainWallet, eWallet, meta } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    let user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (role) user.role = role;
+    if (status !== undefined) user.status = status;
+    if (commissionPackage) user.commissionPackage = commissionPackage;
+    if (isAccountActive !== undefined) user.isAccountActive = isAccountActive;
+    if (cappingMoney !== undefined) user.cappingMoney = cappingMoney;
+    if (mainWallet !== undefined) user.mainWallet = mainWallet;
+    if (eWallet !== undefined) user.eWallet = eWallet;
+    if (meta) user.meta = meta;
+
+    await user.save();
+    return res.status(200).json({
+      message: "User details updated successfully"
+    });
+  } catch (error) {
+    console.error("Error in updateUserDetails:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 module.exports = {
   sendOtpController,
   verifyOTPController,
   registerUser,
   loginController,
-  getUserController,
   updateProfileController,
-  getRetailersByDistributor
+  getUserController,
+  getUsersWithFilters,
+  updateUserStatus,
+  updateUserDetails
 };
