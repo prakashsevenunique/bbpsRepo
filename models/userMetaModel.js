@@ -1,4 +1,4 @@
-const mongoose = require('mongoose')
+const mongoose = require('mongoose');
 
 const userMetaSchema = new mongoose.Schema({
   userId: {
@@ -13,9 +13,21 @@ const userMetaSchema = new mongoose.Schema({
   },
   services: [
     {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Service',
-      required: true,
+      serviceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Service',
+        required: true
+      },
+      serviceName: {
+        type: String,
+        required: false
+      },
+      switch: {
+        type: String,
+        required: true,
+        enum: ['billAwene', 'spritVerify', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
+        default: 'spritVerify'
+      }
     }
   ],
   preferences: {
@@ -24,6 +36,6 @@ const userMetaSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
-})
+});
 
-module.exports = mongoose.model('UserMeta', userMetaSchema)
+module.exports = mongoose.model('UserMeta', userMetaSchema);

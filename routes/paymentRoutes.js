@@ -47,5 +47,6 @@ const paymentRequestController = require("../controllers/paymentRequestControlle
 router.post("/", createPaymentRequestSchema, paymentRequestController.createPaymentRequest);
 router.get("/:id", paymentRequestController.getPaymentRequestById);
 router.get("/", paymentRequestController.listPaymentRequests);
+router.put("/:id", paymentRequestController.updatePaymentRequestStatus);
 
 module.exports = router;

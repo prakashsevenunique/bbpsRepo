@@ -2,9 +2,9 @@ const User = require("../models/userModel.js");
 const mongoose = require("mongoose");
 const axios = require("axios");
 const PayOut = require("../models/payOutModel.js");
+const { parse } = require('json2csv');
 
-
-exports.getPayOuts = async (req, res) => {
+exports.getPayOuts = async (req, res, next) => {
   try {
     const {
       keyword,
@@ -125,12 +125,11 @@ exports.getPayOuts = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    next(error);
   }
 };
 
-exports.generatePayOut = async (req, res) => {
+exports.generatePayOut = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -138,82 +137,103 @@ exports.generatePayOut = async (req, res) => {
     const { amount, reference, account, trans_mode, ifsc, name, mobile, email } = req.body;
 
     const userId = new mongoose.Types.ObjectId(req.user.id);
-
-    const user = await User.findById(userId).session(session);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found.",
-      });
-    }
-
-    if ((user.mainWallet + user.cappingMoney) < amount) {
-      return res.status(400).json({
-        success: false,
-        message: "Insufficient balance.",
-      });
-    }
-
-    user.mainWallet -= amount;
-    await user.save({ session });
-
-    const payOutData = await axios.post(
-      "https://api.worldpayme.com/api/v1.1/payoutTransaction",
+    const updatedUser = await User.findOneAndUpdate(
       {
-        amount: amount,
-        reference: reference,
-        trans_mode: trans_mode,
-        account: account,
-        ifsc: ifsc,
-        name: name,
-        email: email,
-        mobile: mobile
+        _id: userId,
+        $expr: {
+          $gte: [{ $subtract: ["$mainWallet", "$cappingMoney"] }, amount],
+        },
       },
       {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI4IiwianRpIjoiOTcwY2YwZTE1NjcxMGIwZDQ3ZWZlOWY0ZWNjYmJkZDMxNjhmNWMxODc3MzE4ZTgwNzdmNmVmNTczOTZlZDIyNjkwNTZiOWNiZTFmNTBlMjEiLCJpYXQiOjE3NDA5NzgxMzkuOTk5MjM0LCJuYmYiOjE3NDA5NzgxMzkuOTk5MjM1LCJleHAiOjE3NzI1MTQxMzkuOTk2NjgxLCJzdWIiOiIyMzciLCJzY29wZXMiOltdfQ.lakPf6sw_uhlkeLzX0iWt3YAkeC4lJd-lici6uc_of4EIEJjMakV9xr77rv35jpNbw2QYDWpVbtNYMZeAWIaX5T9TnbPtI0_J0yyUr6WoKmNtV6xjCU5rJz-QGuLgvg-uurNxsWXW2mo3j3t202fvZPsCdY0PzLlWzDiLQJ8DjKIK10oLagBR7WANafjNujtX84A9wy9xYX1LDNwQtI6d6EjMg4TKwt3MazawXh57TjFC7X4bYMlSNshvCXICMSEQ8z_20GZqBAXtjguPjAmzpgVMD7hcMn4iGLP4Oqfo0hD36xvcszWk62IxsBlNHzwf9SJ6tEqWjJKZ7m36uOT79UEXJXQiPkguqbKZ2G3nQu8HN4rm0ccOFqnqKloNaDQJtbVn9N0PPN_ho_RqrNhA02Ut-BdTWbH8-y2DCQNHJeuf8Iee0f934dlnZPaNC76RHhgyKmsc2eaSmpEr9SGe6P-4BJ-pIJkkyl7xHCT4pu2t9Elt7lpjQW_BwztEZ8SJQNQVkv5hvXrtC-KAdnJ7ZAzMPxmCjSaFRgMGLnHr_iQiS8rTgfQFGBXSK4NXXVClaf0-EFoYIVIWUkhgoDMDJKmcjCDLPxOyjOfGy8Ha3oHvMzalEcLGX13f8a4EzzGPcZ3ZSfo3iqbBTNeFkgMr-39I5d9L5iAGYNz4wFiKA8`,
-        },
+        $inc: { mainWallet: -amount },
+      },
+      {
+        session,
+        new: true,
       }
     );
-    if (payOutData.status !== 200) {
-      await session.abortTransaction();
-      session.endSession();
+
+    if (!updatedUser) {
       return res.status(400).json({
         success: false,
-        message: "Failed to create payout transaction.",
+        message: "Insufficient balance or another transaction in progress.",
+      });
+    }
+    let payoutResponse;
+    try {
+      payoutResponse = await axios.post(
+        "https://api.worldpayme.com/api/v1.1/payoutTransaction",
+        {
+          amount,
+          reference,
+          trans_mode,
+          account,
+          ifsc,
+          name,
+          mobile,
+          email,
+          address: updatedUser.address || "",
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer YOUR_LONG_LIVED_ACCESS_TOKEN`,
+          },
+        }
+      );
+    } catch (externalError) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(502).json({
+        success: false,
+        message: "Payout service unavailable.",
+        error: externalError.message,
+      });
+    }
+
+    if (payoutResponse.status !== 200) {
+      await session.abortTransaction();
+      session.endSession();
+
+      return res.status(400).json({
+        success: false,
+        message: "Failed to process payout via provider.",
       });
     }
 
     const newPayOut = new PayOut({
-      userId: new mongoose.Types.ObjectId(req.user.id),
+      userId,
       amount,
       reference,
       account,
-      trans_mode: trans_mode || 'IMPS',
+      trans_mode: trans_mode || "IMPS",
       ifsc,
       name,
       mobile,
-      email
+      email,
     });
 
     await newPayOut.save({ session });
+
     await session.commitTransaction();
     session.endSession();
+
     return res.status(201).json({
       success: true,
-      message: "Payout request created successfully.",
+      message: "Payout processed successfully.",
+      data: {
+        payoutId: newPayOut._id,
+        amount,
+        reference,
+        status: "success",
+      },
     });
-
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal server error",
-    });
+    next(error);
   }
-};
+}
 
 exports.callbackPayout = async (req, res) => {
   const session = await mongoose.startSession();

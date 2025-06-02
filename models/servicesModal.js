@@ -23,6 +23,11 @@ const serviceSchema = new mongoose.Schema(
         required: true,
       },
     ],
+    serviceBy:{
+      type: String,
+      enum: ['billAwene', 'spritVerify', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
+      required: [true, 'Service provider is required'],
+    },
     serviceCharges: {
       type: Number,
       required: [true, 'Service charges are required'],

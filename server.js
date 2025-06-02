@@ -29,8 +29,11 @@ app.use("/api/v1/service", serviceRoutes);
 app.use("/api/v1/e-wallet",require("./routes/eWalletRoutes.js"));
 app.use("/api/v1/payment", require("./routes/mainWalletRoutes.js"));
 app.use("/api/v1/query", require("./routes/queryRoutes.js"));
-app.use("api/v1/payment_req", require("./routes/paymentRoutes.js"));
+app.use("/api/v1/payment_req", require("./routes/paymentRoutes.js"));
 app.use("/api/v1/billAvenue",require("./routes/billAvenueRoutes.js"));
+app.use("/api/v1/bbps", require("./routes/bbpsRoutes.js"));
+app.use("/api/v1/s3", require("./routes/sprintRoutes.js"));
+
 
 
 app.use("/api/recharge", rechargeRoute);

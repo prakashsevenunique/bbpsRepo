@@ -10,7 +10,7 @@ const getOperatorList = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -42,6 +42,7 @@ const getOperatorList = async (req, res) => {
     });
   }
 };
+
 const doRecharge = async (req, res) => {
   const { operator, canumber, amount, referenceid } = req.body;
 
@@ -65,8 +66,8 @@ const doRecharge = async (req, res) => {
       {
         headers: {
           "Content-Type": "application/json",
-           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Token': generatePaysprintJWT(),
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -105,7 +106,7 @@ const doRecharge = async (req, res) => {
     });
   }
 };
-// POST: /check-recharge-status
+
 const checkRechargeStatus = async (req, res) => {
   const { referenceid } = req.body;
 
@@ -126,7 +127,7 @@ const checkRechargeStatus = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -170,7 +171,7 @@ const checkRechargeStatus = async (req, res) => {
     });
   }
 };
-// POST: /get-bill-operator-list
+
 const getBillOperatorList = async (req, res) => {
   const { mode = "online" } = req.body; // Defaults to online
 
@@ -182,7 +183,7 @@ const getBillOperatorList = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -243,7 +244,7 @@ const fetchBillDetails = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -327,7 +328,7 @@ const payBill = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -392,8 +393,8 @@ const checkBillPaymentStatus = async (req, res) => {
       {
         headers: {
           "Content-Type": "application/json",
-         'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Token': generatePaysprintJWT(),
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -607,7 +608,8 @@ const checkLICBillPaymentStatus = async (req, res) => {
       {
         headers: {
           "Content-Type": "application/json",
-          'Token': generatePaysprintJWT(),        },
+          'Token': generatePaysprintJWT(),
+        },
       }
     );
 
@@ -665,5 +667,5 @@ module.exports = {
   fetchLICBillDetails,
   payLICBill,
   checkLICBillPaymentStatus
-  
+
 };
