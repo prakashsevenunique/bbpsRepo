@@ -350,7 +350,7 @@ const complaintregistration = async (req, res) => {
         message: responseData.errorInfo.error[0].errorMessage || "Failed to register the complaint",
       });
     }
-    
+
   } catch (error) {
     console.error("Error:", error.message);
     res.status(500).json({ error: error.message });

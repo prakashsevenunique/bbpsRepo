@@ -1,7 +1,7 @@
 const express = require('express');
 const { celebrate, Segments, Joi } = require('celebrate');
 const router = express.Router();
-const controller = require('../controllers/eWalletControlller.js');
+const controller = require('../controllers/WalletControlller.js');
 const authenticateToken = require('../middleware/verifyToken.js');
 
 
@@ -18,12 +18,19 @@ const validation = {
     limit: Joi.number().integer().min(1).max(100).default(10).optional().allow(null, "")
   }).unknown(true)
 };
-  
+
 router.get(
   '/',
-  celebrate(validation),authenticateToken,
+  celebrate(validation), authenticateToken,
   controller.getWalletTransactions
 );
-router.post('/',authenticateToken, controller.createWalletTransaction);
+
+router.get(
+  '/main', authenticateToken,
+  controller.getMainWalletTransactions
+);
+
+
+router.post('/', authenticateToken, controller.createWalletTransaction);
 
 module.exports = router;

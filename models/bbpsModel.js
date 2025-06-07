@@ -26,6 +26,11 @@ const bbpsHistorySchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    charges:{
+      type:Number,
+      min:0,
+      default: 1.00 
+    },
     transactionId: {
       type: String,
       trim: true,
@@ -47,6 +52,5 @@ const bbpsHistorySchema = new mongoose.Schema(
 
 // Optional: Add an index for faster lookups
 bbpsHistorySchema.index({ userId: 1 });
-bbpsHistorySchema.index({ transactionId: 1 });
 
 module.exports = mongoose.model('BbpsHistory', bbpsHistorySchema);

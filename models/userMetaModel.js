@@ -1,41 +1,63 @@
 const mongoose = require('mongoose');
 
-const userMetaSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    unique: true,
-  },
-  ipWhitelist: {
-    type: [String],
-    default: [],
-  },
-  services: [
-    {
-      serviceId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Service',
-        required: true
+const userMetaSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      unique: true,
+      index: true,
+    },
+    ipWhitelist: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: function (ips) {
+          return ips.every(ip => typeof ip === 'string');
+        },
+        message: 'All IPs must be strings',
       },
-      serviceName: {
-        type: String,
-        required: false
+    },
+    services: [
+      {
+        serviceId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Service",
+          required: true,
+        },
+        chargeType: {
+          type: String,
+          enum: ["fixed", "percentage"],
+          required: true,
+        },
+        serviceCharges: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+        gst: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+        distributorCommission: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+        _id: false
       },
-      switch: {
-        type: String,
-        required: true,
-        enum: ['billAwene', 'spritVerify', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
-        default: 'spritVerify'
-      }
-    }
-  ],
-  preferences: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {},
+    ],
+    preferences: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+  },
+  {
+    timestamps: true,
+    versionKey: false,
   }
-}, {
-  timestamps: true
-});
+);
 
 module.exports = mongoose.model('UserMeta', userMetaSchema);

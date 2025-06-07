@@ -3,8 +3,9 @@ const router = express.Router();
 
 
 const bbpsController = require('../controllers/bbpsController.js');
+const authenticateToken = require('../middleware/verifyToken.js');
 
-router.get('/report', bbpsController.getBbpsReport);
+router.get('/report',authenticateToken, bbpsController.getBbpsReport);
 
 router.post('/history',bbpsController.saveRecharge);
 

@@ -8,10 +8,10 @@ const getSourceCities = async (req, res) => {
       "https://sit.paysprint.in/service-api/api/v1/service/bus/ticket/source",
       {}, // API body empty hoti hai
       {
-       headers: {
+        headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -58,7 +58,6 @@ const getAvailableTrips = async (req, res) => {
       destination_id,
       date_of_journey,
     };
-
     const response = await axios.post(
       "https://sit.paysprint.in/service-api/api/v1/service/bus/ticket/availabletrips",
       payload,
@@ -66,7 +65,7 @@ const getAvailableTrips = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -116,7 +115,7 @@ const getTripDetails = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -169,7 +168,7 @@ const getBoardingPointDetail = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -251,7 +250,7 @@ const blockTicket = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -315,7 +314,7 @@ const bookTicket = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -364,7 +363,7 @@ const checkBookedTicket = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -413,7 +412,7 @@ const getTicketDetails = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -462,7 +461,7 @@ const getCancellationData = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );
@@ -515,7 +514,7 @@ const cancelTicket = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           'Token': generatePaysprintJWT(),
-         'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+          'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
         },
       }
     );

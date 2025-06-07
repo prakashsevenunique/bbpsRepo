@@ -29,9 +29,7 @@ const queryRemitter = async (req, res) => {
   }
 };
 
-// -----------------------------
-// Remitter E-KYC Controller
-// -----------------------------
+
 const remitterEKyc = async (req, res) => {
   try {
     const {
@@ -126,8 +124,6 @@ const registerBeneficiary = async (req, res) => {
     return res.status(500).json({ error: true, message: error.message });
   }
 };
-
-
 
 // -----------------------------
 // Delete Beneficiary Controller
@@ -252,8 +248,6 @@ const PennyDrop = async (req, res) => {
     return res.status(500).json({ error: true, message: error.message });
   }
 };
-
-
 // -----------------------------
 // Send OTP for Transaction
 // -----------------------------

@@ -172,6 +172,7 @@ const checkRechargeStatus = async (req, res) => {
   }
 };
 
+
 const getBillOperatorList = async (req, res) => {
   const { mode = "online" } = req.body; // Defaults to online
 
@@ -496,7 +497,7 @@ const fetchLICBillDetails = async (req, res) => {
   }
 };
 // POST: /pay-lic-bill
-const payLICBill = async (req, res) => {
+const payLICBill = async (req, res) => {                                                           
   const {
     canumber,
     mode = "online",

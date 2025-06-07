@@ -4,9 +4,9 @@ const serviceSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Service name is required'],
+      required: true,
       unique: true,
-      trim: true,
+      trim: true
     },
     description: {
       type: String,
@@ -14,44 +14,54 @@ const serviceSchema = new mongoose.Schema(
     },
     icon: {
       type: String,
-      required: [true, 'Icon is required'],
+      required: true,
     },
-    serviceFor: [
-      {
-        type: String,
-        enum: ['User', 'Retailer', 'Distributor', 'ApiPartner', 'Admin'],
-        required: true,
-      },
-    ],
-    serviceBy:{
+    serviceFor: {
+      type: [String],
+      enum: ['User', 'Retailer', 'Distributor', 'ApiPartner', 'Admin'],
+      required: true,
+    },
+    defaultSwitch: {
       type: String,
-      enum: ['billAwene', 'spritVerify', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
-      required: [true, 'Service provider is required'],
+      enum: ['billAwene', 'spritVerify', 'Mobikwik', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
+      required: true,
+      default: 'spritVerify',
     },
-    serviceCharges: {
-      type: Number,
-      required: [true, 'Service charges are required'],
-      min: [0, 'Service charges cannot be negative'],
-    },
-    commission: {
-      type: Number,
-      required: [true, 'Commission is required'],
-      min: [0, 'Commission cannot be negative'],
-    },
-    distributorCommission: {
-      type: Number,
-      required: [true, 'Distributor commission is required'],
-      min: [0, 'Distributor commission cannot be negative'],
-    },
-    gst: {
-      type: Number,
-      required: [true, 'GST is required'],
-      min: [0, 'GST cannot be negative'],
-    },
+    providers: [
+      {
+        providerName: {
+          type: String,
+          enum: ['billAwene', 'spritVerify', 'serverMaintenance', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
+          required: true,
+          default: 'spritVerify'
+        },
+        chargeType: {
+          type: String,
+          enum: ['fixed', 'percentage'],
+          required: true,
+          default: 'fixed'
+        },
+        serviceCharges: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+        distributorCommission: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+        gst: {
+          type: Number,
+          required: true,
+          min: 0,
+        }
+      }
+    ],
     isActive: {
       type: Boolean,
       default: true,
-    },
+    }
   },
   {
     timestamps: true,

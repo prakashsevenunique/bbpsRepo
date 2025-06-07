@@ -1,214 +1,368 @@
 const axios = require("axios");
 const generatePaysprintJWT = require("../../services/Dmt&Aeps/TokenGenrate.js");
 const BbpsHistory = require("../../models/bbpsModel.js");
+const Transaction = require("../../models/transactionModel.js");
+const userModel = require("../../models/userModel.js");
+const mongoose = require("mongoose");
 
 const headers = {
-    'Token': generatePaysprintJWT(),
-    'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
+  'Token': generatePaysprintJWT(),
+  'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
 }
 
 const generateReferenceId = () => {
-    const timestamp = Date.now().toString(36); // Short base36 timestamp
-    const randomStr = Math.random().toString(36).substring(2, 8); // Random string
-    return `REF-${timestamp}-${randomStr}`.toUpperCase();
+  const timestamp = Date.now().toString(36); // Short base36 timestamp
+  const randomStr = Math.random().toString(36).substring(2, 8); // Random string
+  return `REF${timestamp}${randomStr}`.toUpperCase();
 };
 
 exports.hlrCheck = async (req, res, next) => {
-    const { number, type } = req.body;
-    try {
-        const apiUrl = "https://sit.paysprint.in/service-api/api/v1/service/recharge/hlrapi/hlrcheck";
-        const requestData = {
-            number,
-            type
-        };
-        const response = await axios.post(apiUrl, requestData, { headers });
-        return res.status(200).json({
-            data: response.data
-        });
-    } catch (error) {
-        next(error);
-    }
+  const { number, type } = req.body;
+  try {
+    const apiUrl = "https://sit.paysprint.in/service-api/api/v1/service/recharge/hlrapi/hlrcheck";
+    const requestData = {
+      number,
+      type
+    };
+    const response = await axios.post(apiUrl, requestData, { headers });
+    return res.status(200).json({
+      data: response.data
+    });
+  } catch (error) {
+    next(error);
+  }
 };
+
 exports.browsePlan = async (req, res, next) => {
-    const { circle, op } = req.query;
-    try {
-        const apiUrl = "https://sit.paysprint.in/service-api/api/v1/service/recharge/hlrapi/browseplan";
-        const requestData = {
-            circle,
-            op
-        };
-        const response = await axios.post(apiUrl, requestData, { headers });
-        return res.status(200).json({
-            data: response.data
-        });
-    } catch (error) {
-        next(error);
-    }
+  const { circle, op } = req.query;
+  try {
+    const apiUrl = "https://sit.paysprint.in/service-api/api/v1/service/recharge/hlrapi/browseplan";
+    const requestData = {
+      circle,
+      op
+    };
+    const response = await axios.post(apiUrl, requestData, { headers });
+    return res.status(200).json({
+      data: response.data
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 exports.getOperatorList = async (req, res, next) => {
-    try {
-        const response = await axios.post(
-            "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator",
-            {},
-            { headers }
-        );
+  try {
+    const response = await axios.post(
+      "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator",
+      {},
+      { headers }
+    );
 
-        if (response.data?.response_code === 1) {
-            // Store operators in memory for this request cycle (optional)
-            req.operators = response.data.data;
+    if (response.data?.responsecode === 1) {
+      req.operators = response.data.data;
 
-            return res.status(200).json({
-                status: "success",
-                message: "Operator List Fetched",
-                data: response.data.data,
-            });
-        } else {
-            return res.status(200).json({
-                status: "success",
-                message: "No Operator Found",
-                data: []
-            });
-        }
-    } catch (error) {
-        next(error);
+      return res.status(200).json({
+        status: "success",
+        message: "Operator List Fetched",
+        data: response.data.data,
+      });
+    } else {
+      return res.status(200).json({
+        status: "success",
+        message: "No Operator Found",
+        data: []
+      });
     }
+  } catch (error) {
+    next(error);
+  }
 };
 
 exports.doRecharge = async (req, res, next) => {
-    const { operator: operatorName, canumber, amount, category } = req.body;
-    const userId = req.user.id;
-    const referenceid = generateReferenceId();
+  const { operator: operatorName, canumber, amount, category } = req.body;
+  const userId = req.user.id;
+  const referenceid = generateReferenceId();
 
-    try {
-        const operatorResponse = await axios.post(
-            "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator",
-            {},
-            { headers }
-        );
-        console.log("Operator Response:", operatorResponse.data);
-        if (operatorResponse.data?.responsecode !== 1) {
-            return res.status(400).json({
-                status: "fail",
-                message: "Could not verify operator"
-            });
-        }
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-        const operator = operatorResponse.data.data.find(
-            op => op.name.toLowerCase() === operatorName.toLowerCase()
-        );
-
-        if (!operator) {
-            return res.status(400).json({
-                status: "fail",
-                message: "Invalid operator name"
-            });
-        }
-
-        const operatorId = operator.id;
-
-        const rechargeRecord = new BbpsHistory({
-            userId,
-            rechargeType: category,
-            operator: operatorId,
-            operatorName: operatorName,
-            customerNumber: canumber,
-            amount,
-            transactionId: referenceid,
-        });
-
-        await rechargeRecord.save();
-
-        const response = await axios.post(
-            "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/dorecharge",
-            {
-                operator: operatorId,
-                canumber,
-                amount,
-                referenceid,
-            },
-            { headers }
-        );
-
-        const resData = response.data;
-        let status, message;
-
-        switch (resData.response_code) {
-            case 1:
-                status = "Success";
-                message = resData.message || "Recharge successful";
-                break;
-            case 2:
-            case 0:
-                status = "Requery";
-                message = resData.message || "Please requery after 30 min";
-                break;
-            default:
-                status = "Failed";
-                message = resData.message || "Recharge failed";
-        }
-
-        rechargeRecord.status = status;
-        await rechargeRecord.save();
-
-        return res.status(resData.response_code === 1 ? 200 : 400).json({
-            status: status.toLowerCase(),
-            message,
-            data: resData,
-        });
-
-    } catch (error) {
-        await BbpsHistory.findOneAndUpdate(
-            { transactionId: referenceid },
-            { $set: { status: "Failed" } }
-        );
-        console.log(error.message)
-        next(error);
+  try {
+    const user = await userModel.findById(userId).session(session);
+    if (!user || user.eWallet < amount) {
+      throw new Error("Insufficient wallet balance");
     }
+
+    user.eWallet -= amount;
+    await user.save({ session });
+
+    const debitTxn = await Transaction.create(
+      [{
+        user_id: userId,
+        transaction_type: "debit",
+        amount,
+        balance_after: user.eWallet,
+        payment_mode: "wallet",
+        transaction_reference_id: referenceid,
+        description: `Recharge initiated for ${canumber} (${operatorName})`,
+        status: "Pending"
+      }],
+      { session }
+    );
+
+    const operatorRes = await axios.post(
+      "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator",
+      {},
+      { headers }
+    );
+
+    if (operatorRes.data?.responsecode !== 1) {
+      throw new Error("Operator lookup failed");
+    }
+
+    const operator = operatorRes.data.data.find(
+      op => op.name.toLowerCase() === operatorName.toLowerCase()
+    );
+    if (!operator) throw new Error("Invalid operator name");
+
+    const operatorId = operator.id;
+
+    const rechargeRecord = await BbpsHistory.create(
+      [{
+        userId,
+        rechargeType: category,
+        operator: operatorName,
+        customerNumber: canumber,
+        amount,
+        transactionId: referenceid,
+        extraDetails: { mobileNumber: canumber },
+        status: "Pending"
+      }],
+      { session }
+    );
+
+    const rechargeRes = await axios.post(
+      "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/dorecharge",
+      { operator: operatorId, canumber, amount, referenceid },
+      { headers }
+    );
+
+    const { response_code, message } = rechargeRes.data;
+    let status = "Failed";
+
+    if (response_code === 1) status = "Success";
+    else if ([0, 2].includes(response_code)) status = "Pending";
+
+    rechargeRecord[0].status = status;
+    await rechargeRecord[0].save({ session });
+
+    debitTxn[0].status = status;
+    await debitTxn[0].save({ session });
+
+    if (status === "Failed") {
+      user.eWallet += amount;
+      await user.save({ session });
+
+      await Transaction.create([{
+        user_id: userId,
+        transaction_type: "credit",
+        amount,
+        balance_after: user.eWallet,
+        payment_mode: "wallet",
+        transaction_reference_id: `${referenceid}-refund`,
+        description: `Refund for failed recharge to ${canumber} (${operatorName})`,
+        status: "Success"
+      }], { session });
+
+      rechargeRecord[0].status = "Refunded";
+      await rechargeRecord[0].save({ session });
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(status === "Success" ? 200 : 400).json({
+      status: status.toLowerCase(),
+      message: message || `Recharge ${status.toLowerCase()}`,
+      refid: referenceid
+    });
+
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    return next(err);
+  }
 };
 
+
 exports.checkRechargeStatus = async (req, res, next) => {
-    const { transactionId } = req.params;
+  const { transactionId } = req.params;
 
-    try {
-        const response = await axios.post(
-            "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/status",
-            {
-                referenceid: transactionId,
-            },
-            { headers }
-        );
-        const resData = response.data;
-        if (resData.status === true) {
-            const txnStatus = resData.data?.status;
+  try {
+    const response = await axios.post(
+      "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/status",
+      {
+        referenceid: transactionId,
+      },
+      { headers }
+    );
+    const resData = response.data;
+    if (resData.status === true) {
+      const txnStatus = resData.data?.status;
 
-            if (txnStatus === 1) {
-                return res.status(200).json({
-                    status: "success",
-                    message: "Recharge successful",
-                    data: resData.data,
-                });
-            } else if (txnStatus === 0) {
-                return res.status(200).json({
-                    status: "failed",
-                    message: "Recharge failed",
-                    data: resData.data,
-                });
-            } else {
-                return res.status(200).json({
-                    status: "pending",
-                    message: "Recharge status pending",
-                    data: resData.data,
-                });
-            }
-        } else {
-            return res.status(400).json({
-                status: "fail",
-                message: "Status API returned failure",
-                data: resData,
-            });
-        }
-    } catch (error) {
-        next(error);
+      if (txnStatus === 1) {
+        return res.status(200).json({
+          status: "success",
+          message: "Recharge successful",
+          data: resData.data,
+        });
+      } else if (txnStatus === 0) {
+        return res.status(200).json({
+          status: "failed",
+          message: "Recharge failed",
+          data: resData.data,
+        });
+      } else {
+        return res.status(200).json({
+          status: "pending",
+          message: "Recharge status pending",
+          data: resData.data,
+        });
+      }
+    } else {
+      return res.status(400).json({
+        status: "fail",
+        message: "Status API returned failure",
+        data: resData,
+      });
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getBillOperatorList = async (req, res) => {
+  const { mode = "online" } = req.body;
+  try {
+    const response = await axios.post(
+      "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/getoperator",
+      { mode },
+      { headers }
+    );
+
+    const data = response.data;
+    if (data.response_code === 1) {
+      return res.status(200).json({ status: "success", message: "Operator list fetched", data: data.data });
+    }
+    if (data.response_code === 2) {
+      return res.status(200).json({ status: "success", message: "No operators found", data: [] });
+    }
+    return res.status(400).json({ status: "fail", message: data.message || "Unexpected API response", data: data.data });
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: error.response?.data?.message || "Failed to fetch bill operator list",
+      error: error.message,
+    });
+  }
+};
+
+exports.fetchBillDetails = async (req, res) => {
+  const { operator, canumber, mode = "online", ...extraFields } = req.body;
+
+  if (!operator || !canumber) {
+    return res.status(400).json({ status: "fail", message: "Missing required fields: operator, canumber" });
+  }
+
+  try {
+    const response = await axios.post(
+      "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/fetchbill",
+      { operator, canumber, mode, ...extraFields },
+      { headers }
+    );
+
+    const data = response.data;
+    if (data.response_code === 1) {
+      return res.status(200).json({ ...data, status: "success", message: "Bill fetched successfully" });
+    }
+    if ([2, 3, 4, 7, 8, 9, 11].includes(data.response_code)) {
+      return res.status(200).json({ ...data, status: "info", message: data.message || "Info" });
+    }
+    return res.status(400).json({ ...data, status: "fail", message: data.message || "Bill fetch failed" });
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: error.response?.data?.message || "Bill fetch API failed",
+      error: error.message,
+    });
+  }
+};
+
+exports.payBill = async (req, res) => {
+  const { operator, canumber, amount, referenceid, latitude, longitude, mode = "online", bill_fetch } = req.body;
+
+  if (!operator || !canumber || !amount || !referenceid || !latitude || !longitude || !bill_fetch) {
+    return res.status(400).json({ status: "fail", message: "Missing required fields or bill_fetch data" });
+  }
+
+  try {
+    const response = await axios.post(
+      "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/paybill",
+      { operator, canumber, amount, referenceid, latitude, longitude, mode, bill_fetch },
+      { headers }
+    );
+
+    const data = response.data;
+    switch (data.response_code) {
+      case 1:
+        return res.status(200).json({ ...data, status: "success", message: "Bill Payment Successful" });
+      case 0:
+        return res.status(200).json({ ...data, status: "pending", message: "Bill Payment Pending" });
+      case 9:
+      case 14:
+        return res.status(200).json({ ...data, status: "failed", message: "Bill Payment Failed" });
+      default:
+        return res.status(400).json({ ...data, status: "fail", message: data.message || "Bill payment not processed" });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: error.response?.data?.message || "Bill payment API failed",
+      error: error.message,
+    });
+  }
+};
+
+
+exports.checkBillPaymentStatus = async (req, res) => {
+  const { referenceid } = req.body;
+
+  if (!referenceid) {
+    return res.status(400).json({ status: "fail", message: "Missing required field: referenceid" });
+  }
+
+  try {
+    const response = await axios.post(
+      "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/status",
+      { referenceid },
+      { headers }
+    );
+
+    const data = response.data;
+    if (data.status === true) {
+      const statusMap = { 0: "failed", 1: "success", 2: "pending" };
+      const txnStatus = data.data?.status;
+      return res.status(200).json({
+        status: statusMap[txnStatus] || "unknown",
+        message: txnStatus === 1 ? "Bill payment successful" : txnStatus === 0 ? "Bill payment failed" : "Bill payment status pending",
+        data,
+      });
+    }
+    return res.status(400).json({ status: "fail", message: "Status fetch failed", data });
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: error.response?.data?.message || "Status check API failed",
+      error: error.message,
+    });
+  }
 };
