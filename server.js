@@ -37,6 +37,7 @@ app.use("/api/v1/payment_req", require("./routes/paymentRoutes.js"));
 app.use("/api/v1/billAvenue", require("./routes/billAvenueRoutes.js"));
 app.use("/api/v1/bbps", require("./routes/bbpsRoutes.js"));
 app.use("/api/v1/s3", require("./routes/sprintRoutes.js"));
+app.use("/api/v1/kyc", require("./routes/kycvideo.js"));
 
 
 
