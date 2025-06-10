@@ -15,15 +15,21 @@ const billerRoutes = require("./routes/bbps/billerRoutes");
 const DmtRoutes = require("./routes/Dmt&Aeps/DmtRoutes");
 const BusBooking = require("./routes/Busbooking/BusBooking");
 const apiLogger = require("./middleware/apiLogger.js");
+const authenticateToken = require("./middleware/verifyToken.js");
 
 
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+}));
+
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(apiLogger); 
+app.use(apiLogger);
 
 
 app.use("/api/v1/auth", authRoutes);
@@ -37,8 +43,8 @@ app.use("/api/v1/payment_req", require("./routes/paymentRoutes.js"));
 app.use("/api/v1/billAvenue", require("./routes/billAvenueRoutes.js"));
 app.use("/api/v1/bbps", require("./routes/bbpsRoutes.js"));
 app.use("/api/v1/s3", require("./routes/sprintRoutes.js"));
-app.use("/api/v1/kyc", require("./routes/kycvideo.js"));
-
+app.use("/api/v1/kyc", authenticateToken, require("./routes/kycvideo.js"));
+app.use("/api/v1", require("./routes/sprintDmt&AepsRoutes.js"));
 
 
 app.use("/api/recharge", rechargeRoute);

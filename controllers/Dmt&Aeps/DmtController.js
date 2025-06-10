@@ -1,5 +1,4 @@
 const axios = require('axios');
-const {  encryptPidData } = require("../../services/Dmt&Aeps/TokenGenrate");
 const  generatePaysprintJWT = require("../../services/Dmt&Aeps/TokenGenrate");
 
 // -----------------------------
@@ -20,15 +19,12 @@ const queryRemitter = async (req, res) => {
         }
       }
     );
-
     return res.json({ data: response.data });
-
   } catch (error) {
     console.error(error.response?.data || error.message);
     return res.status(500).json({ error: true, message: error.message });
   }
 };
-
 
 const remitterEKyc = async (req, res) => {
   try {

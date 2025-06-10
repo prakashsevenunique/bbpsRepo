@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const generateJwtToken = (userId, role, mobileNumber) => {
   try {
@@ -19,4 +20,18 @@ const generateJwtToken = (userId, role, mobileNumber) => {
   }
 };
 
-module.exports = { generateJwtToken };
+function encryptPidData(piddata, key, iv) {
+  const keyBuf = Buffer.isBuffer(key) ? key : Buffer.from(key, 'utf8');
+  const ivBuf = Buffer.isBuffer(iv) ? iv : Buffer.from(iv, 'utf8');
+
+  const cipher = crypto.createCipheriv('aes-128-cbc', keyBuf, ivBuf);
+  const raw = Buffer.concat([
+    cipher.update(piddata, 'utf8'),
+    cipher.final()
+  ]);
+
+  return raw.toString('base64');
+}
+
+
+module.exports = { generateJwtToken, encryptPidData };

@@ -54,3 +54,4 @@ bower_components/
 # OS-specific files
 .DS_Store
 Thumbs.db
+.vercel

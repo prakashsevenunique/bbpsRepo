@@ -3,7 +3,6 @@ const multer = require("multer");
 const path = require("path");
 const User = require("../models/userModel");
 const KYCRequest = require("../models/kycmodels");
-const { error } = require("console");
  
 const router = express.Router();
  
@@ -16,8 +15,8 @@ const upload = multer({ storage });
  
 // 1. Request KYC
 router.post("/request", async (req, res) => {
-  const { userId } = req.body;
-  const kyc = await KYCRequest.create({ user: userId });
+  const kyc = await KYCRequest.create({ user: req?.user?.id });
+  await kyc.save();
   res.json({ message: "KYC requested", kyc });
 });
  
@@ -66,9 +65,10 @@ router.get("/all", async (req, res) => {
   const data = await KYCRequest.find().populate("user");
   res.json(data);
 });
+
  router.get("/user/:id", async (req, res) => {
   const { id } = req.params;
-
+    console.log(id)
   try {
     const kyc = await KYCRequest.findOne({ user: id })
       .sort({ createdAt: -1 }) // In case there are multiple

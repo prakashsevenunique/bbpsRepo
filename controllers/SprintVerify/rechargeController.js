@@ -119,7 +119,7 @@ exports.doRecharge = async (req, res, next) => {
       throw new Error("Operator lookup failed");
     }
 
-    const operator = operatorRes.data.data.find(
+    const operator = operatorRes.data?.data?.find(
       op => op.name.toLowerCase() === operatorName.toLowerCase()
     );
     if (!operator) throw new Error("Invalid operator name");
@@ -297,41 +297,84 @@ exports.fetchBillDetails = async (req, res) => {
   }
 };
 
-exports.payBill = async (req, res) => {
+exports.payBill = async (req, res, next) => {
   const { operator, canumber, amount, referenceid, latitude, longitude, mode = "online", bill_fetch } = req.body;
-
   if (!operator || !canumber || !amount || !referenceid || !latitude || !longitude || !bill_fetch) {
-    return res.status(400).json({ status: "fail", message: "Missing required fields or bill_fetch data" });
+    return res.status(400).json({ status: "fail", message: "Missing required fields" });
   }
 
+  const userId = req.user.id;
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
+    const user = await userModel.findById(userId).session(session);
+    if (!user || user.eWallet < amount) throw new Error("Insufficient wallet balance");
+
+    user.eWallet -= amount;
+    await user.save({ session });
+
+    const debitTxn = await Transaction.create([{
+      user_id: userId,
+      transaction_type: "debit",
+      amount,
+      balance_after: user.eWallet,
+      payment_mode: "wallet",
+      transaction_reference_id: referenceid,
+      description: `Bill payment initiated for ${canumber} (${operator})`,
+      status: "Pending"
+    }], { session });
+
     const response = await axios.post(
       "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/paybill",
       { operator, canumber, amount, referenceid, latitude, longitude, mode, bill_fetch },
       { headers }
     );
+    const { response_code, message } = response.data;
 
-    const data = response.data;
-    switch (data.response_code) {
-      case 1:
-        return res.status(200).json({ ...data, status: "success", message: "Bill Payment Successful" });
-      case 0:
-        return res.status(200).json({ ...data, status: "pending", message: "Bill Payment Pending" });
-      case 9:
-      case 14:
-        return res.status(200).json({ ...data, status: "failed", message: "Bill Payment Failed" });
-      default:
-        return res.status(400).json({ ...data, status: "fail", message: data.message || "Bill payment not processed" });
+    let status;
+    if (response_code === 1) status = "Success";
+    else if (response_code === 0) status = "Pending";
+    else if ([9, 14].includes(response_code)) status = "Failed";
+    else status = "Failed";
+
+    // Update debit txn
+    debitTxn[0].status = status;
+    await debitTxn[0].save({ session });
+
+    // Store history
+    await BbpsHistory.create([{
+      userId, rechargeType: "bill payment", operator, customerNumber: canumber, amount,
+      transactionId: referenceid,
+      extraDetails: bill_fetch, status
+    }], { session });
+
+    if (status === "Failed") {
+      user.eWallet += amount;
+      await user.save({ session });
+      await Transaction.create([{
+        user_id: userId,
+        transaction_type: "credit",
+        amount,
+        balance_after: user.eWallet,
+        payment_mode: "wallet",
+        transaction_reference_id: `${referenceid}-refund`,
+        description: `Refund for failed bill payment to ${canumber} (${operator})`,
+        status: "Success"
+      }], { session });
     }
-  } catch (error) {
-    return res.status(500).json({
-      status: "error",
-      message: error.response?.data?.message || "Bill payment API failed",
-      error: error.message,
-    });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(status === "Success" || status === "Pending" ? 200 : 400)
+      .json({ status: status.toLowerCase(), message: message || status, refid: referenceid });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    return next(err);
   }
 };
-
 
 exports.checkBillPaymentStatus = async (req, res) => {
   const { referenceid } = req.body;
