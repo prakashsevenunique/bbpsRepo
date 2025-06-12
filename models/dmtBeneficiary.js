@@ -2,49 +2,33 @@ const mongoose = require("mongoose");
 
 const BeneficiarySchema = new mongoose.Schema({
     user_id: {
-        type: Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
     },
+    type: {
+        type: String
+    },
     mobile: {
-        type: String,
-        required: true
+        type: String
     },
     benename: {
-        type: String,
-        required: true
+        type: String
     },
     bankid: {
-        type: String,
-        required: true
+        type: String
     },
     accno: {
-        type: String,
-        required: true
+        type: String
     },
     ifsccode: {
-        type: String,
-        required: true
-    },
-    verified: {
-        type: Boolean,
-        default: false
-    },
-    gst_state: {
-        type: String,
-        required: true
-    },
-    dob: {
-        type: Date,
-        required: true
+        type: String
     },
     address: {
-        type: String,
-        required: true
+        type: String
     },
     pincode: {
-        type: String,
-        required: true
+        type: String
     }
 }, { timestamps: true });
 

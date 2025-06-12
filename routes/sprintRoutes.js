@@ -3,7 +3,7 @@ const router = express.Router();
 const authenticateToken = require('../middleware/verifyToken.js');
 const authorizeRoles = require('../middleware/verifyRole.js');
 const { Joi, Segments, celebrate } = require('celebrate');
-const { getOperatorList, doRecharge, hlrCheck, browsePlan, checkRechargeStatus, getBillOperatorList, fetchBillDetails, payBill, checkBillPaymentStatus } = require('../controllers/SprintVerify/rechargeController.js');
+const { getOperatorList, doRecharge, hlrCheck, browsePlan, checkRechargeStatus, getBillOperatorList, fetchBillDetails, payBill, checkBillPaymentStatus, dthPlan } = require('../controllers/SprintVerify/rechargeController.js');
 const serviceChargeMiddleware = require('../middleware/serviceCharge.js');
 const busController = require("../controllers/SprintVerify/busBookingController.js");
 
@@ -27,6 +27,8 @@ router.get('/recharge/browseplan', authenticateToken, celebrate({
     })
 }), browsePlan);
 
+router.post('/recharge/dthPlan', authenticateToken,dthPlan);
+
 router.get('/recharge/opertor', authenticateToken, getOperatorList);
 
 router.post('/recharge/dorecharge', celebrate({
@@ -36,7 +38,7 @@ router.post('/recharge/dorecharge', celebrate({
         amount: Joi.number().required(),
         category: Joi.string().required()
     })
-}), authenticateToken, serviceChargeMiddleware("Mobile recharge"), doRecharge);
+}), authenticateToken, doRecharge);
 
 router.get("/recharge/status/:transactionId", authenticateToken, celebrate({
     [Segments.PARAMS]: Joi.object().keys({

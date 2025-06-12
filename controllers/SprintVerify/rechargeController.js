@@ -50,6 +50,21 @@ exports.browsePlan = async (req, res, next) => {
   }
 };
 
+exports.dthPlan = async (req, res, next) => {
+  const { canumber, op } = req.body;
+  try {
+    const apiUrl = "https://sit.paysprint.in/service-api/api/v1/service/recharge/hlrapi/dthinfo";
+    const requestData = {
+      canumber,
+      op
+    };
+    const response = await axios.post(apiUrl, requestData, { headers });
+    return res.status(200).json(response.data);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 exports.getOperatorList = async (req, res, next) => {
   try {
     const response = await axios.post(

@@ -6,7 +6,7 @@ const generateJwtToken = (userId, role, mobileNumber) => {
     const payload = {
       id: userId,
       role,
-      mobileNumber,
+      mobileNumber
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
