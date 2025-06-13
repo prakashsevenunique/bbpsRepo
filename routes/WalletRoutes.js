@@ -25,12 +25,6 @@ router.get(
   controller.getWalletTransactions
 );
 
-router.get(
-  '/main', authenticateToken,
-  controller.getMainWalletTransactions
-);
-
-
 router.post('/', authenticateToken, controller.createWalletTransaction);
 
 module.exports = router;

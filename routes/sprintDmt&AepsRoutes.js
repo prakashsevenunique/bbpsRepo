@@ -30,6 +30,6 @@ router.post("/aeps/register/auth", authenticateToken, authenticateMerchant)
 router.post("/aeps/balance", authenticateToken, balanceEnquiry)
 router.post("/aeps/withdraw", authenticateToken, withdrawWithAuth)
 router.post("/aeps/miniStatement", authenticateToken, getMiniStatement)
-router.post("/aeps/banklist", authenticateToken, getAepsBankList)
+router.get("/aeps/banklist", authenticateToken, getAepsBankList)
 
 module.exports = router;

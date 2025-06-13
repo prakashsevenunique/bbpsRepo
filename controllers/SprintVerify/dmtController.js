@@ -123,7 +123,7 @@ exports.registerBeneficiary = async (req, res, next) => {
                 ifsccode,
                 address,
                 pincode,
-                type:"Dmt Beneficiary"
+                type: "Dmt Beneficiary"
             });
             await newBeneficiary.save();
         }
@@ -197,6 +197,10 @@ exports.PennyDrop = async (req, res, next) => {
 
         if (!mobile) {
             return res.status(400).json({ error: true, message: "mobile is required" });
+        }
+        const user = await userModel.findById(req?.user?.id)
+        if (!user || user.eWallet < 10) {
+            throw new Error("To verify the beneficiary you have to have 10 rupees in your account");
         }
 
         const response = await axios.post(

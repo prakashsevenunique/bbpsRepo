@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 function generatePaysprintJWT() {
-    const timestamp = Math.floor(Date.now() / 1000) * 1000 - 500000;
+    const timestamp = Math.floor(Date.now() / 1000);
     const requestId = Math.floor(Math.random() * 1000000000);
     const payload = {
         timestamp: timestamp,

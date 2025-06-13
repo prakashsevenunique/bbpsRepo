@@ -24,6 +24,9 @@ const TransactionSchema = new mongoose.Schema({
     enum: ['Success', 'Pending', 'Failed'],
     default: 'Pending',
   },
+  bankRRN: {
+    type: String
+  },
   payment_mode: {
     type: String,
     enum: ['wallet', 'bank_transfer', 'cash'],

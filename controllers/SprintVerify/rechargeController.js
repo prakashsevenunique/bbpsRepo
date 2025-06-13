@@ -1,6 +1,7 @@
 const axios = require("axios");
 const generatePaysprintJWT = require("../../services/Dmt&Aeps/TokenGenrate.js");
 const BbpsHistory = require("../../models/bbpsModel.js");
+const PayOut = require("../../models/payOutModel.js")
 const Transaction = require("../../models/transactionModel.js");
 const userModel = require("../../models/userModel.js");
 const mongoose = require("mongoose");
@@ -191,6 +192,23 @@ exports.doRecharge = async (req, res, next) => {
       rechargeRecord[0].status = "Refunded";
       await rechargeRecord[0].save({ session });
     }
+    if (status === "Success") {
+      const newPayOut = new PayOut({
+        userId,
+        amount,
+        reference: referenceid,
+        account: null,
+        trans_mode: "WALLET" || "IMPS",
+        ifsc: null,
+        name: user.name,
+        mobile: user.mobileNumber,
+        email: user.email,
+        status: "Success",
+        charges: 0,
+        remark: `Mobile Recharge for ${customerNumber}`
+      });
+      await newPayOut.save({ session });
+    }
 
     await session.commitTransaction();
     session.endSession();
@@ -207,7 +225,6 @@ exports.doRecharge = async (req, res, next) => {
     return next(err);
   }
 };
-
 
 exports.checkRechargeStatus = async (req, res, next) => {
   const { transactionId } = req.params;
@@ -266,12 +283,12 @@ exports.getBillOperatorList = async (req, res) => {
 
     const data = response.data;
     if (data.response_code === 1) {
-      return res.status(200).json({ status: "success", message: "Operator list fetched", data: data.data });
+      return res.status(200).json(data);
     }
     if (data.response_code === 2) {
-      return res.status(200).json({ status: "success", message: "No operators found", data: [] });
+      return res.status(200).json(data);
     }
-    return res.status(400).json({ status: "fail", message: data.message || "Unexpected API response", data: data.data });
+    return res.status(400).json(data);
   } catch (error) {
     return res.status(500).json({
       status: "error",
@@ -378,6 +395,23 @@ exports.payBill = async (req, res, next) => {
         status: "Success"
       }], { session });
     }
+    if (status === "Success") {
+      const newPayOut = new PayOut({
+        userId,
+        amount,
+        reference: referenceid,
+        account: null,
+        trans_mode: "WALLET" || "IMPS",
+        ifsc: null,
+        name: user.name,
+        mobile: user.mobileNumber,
+        email: user.email,
+        status: "Success",
+        charges: 0,
+        remark: `Bill payment for ${canumber} (${operator})`
+      });
+      await newPayOut.save({ session });
+    }
 
     await session.commitTransaction();
     session.endSession();
@@ -391,7 +425,7 @@ exports.payBill = async (req, res, next) => {
   }
 };
 
-exports.checkBillPaymentStatus = async (req, res) => {
+exports.checkBillPaymentStatus = async (req, res,next) => {
   const { referenceid } = req.body;
 
   if (!referenceid) {
@@ -417,10 +451,6 @@ exports.checkBillPaymentStatus = async (req, res) => {
     }
     return res.status(400).json({ status: "fail", message: "Status fetch failed", data });
   } catch (error) {
-    return res.status(500).json({
-      status: "error",
-      message: error.response?.data?.message || "Status check API failed",
-      error: error.message,
-    });
+    return next(error)
   }
 };

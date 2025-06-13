@@ -103,7 +103,7 @@ const blockTicket = async (req, res) => {
     'source', 'destination', 'inventoryItems',
     'bookingType', 'paymentMode', 'serviceCharge'
   ];
-  
+
   try {
     const response = await axios.post(
       "https://sit.paysprint.in/service-api/api/v1/service/bus/ticket/blockticket",
@@ -192,6 +192,23 @@ const bookTicket = async (req, res) => {
 
       bookingRecord.status = "Refunded";
       await bookingRecord.save({ session });
+    }
+    if (status === "Success") {
+      const newPayOut = new PayOut({
+        userId,
+        amount,
+        reference: referenceid,
+        account: null,
+        trans_mode: "WALLET" || "IMPS",
+        ifsc: null,
+        name: user.name,
+        mobile: user.mobileNumber,
+        email: user.email,
+        status: "Success",
+        charges: 0,
+        remark:  `Bus ticket booking with referenceId ${referenceid}`
+      });
+      await newPayOut.save({ session });
     }
 
     await session.commitTransaction();

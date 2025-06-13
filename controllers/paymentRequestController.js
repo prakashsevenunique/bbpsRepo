@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const PaymentRequest = require("../models/paymentRequest");
 const User = require("../models/userModel");
 const PayIn = require("../models/payInModel");
-const mainWallet = require("../models/mainWalletModel");
+const Transaction = require("../models/transactionModel");
 
 exports.createPaymentRequest = async (req, res) => {
   const session = await mongoose.startSession();
@@ -19,8 +19,6 @@ exports.createPaymentRequest = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-
-    console.error("❌ Error creating payment request:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -148,9 +146,9 @@ exports.updatePaymentRequestStatus = async (req, res) => {
         return res.status(404).json({ success: false, message: "User not found" });
       }
 
-      const currentBalance = user.mainWallet || 0;
+      const currentBalance = user.eWallet || 0;
       const newBalance = currentBalance + paymentRequest.amount;
-      user.mainWallet = newBalance;
+      user.eWallet = newBalance;
       await user.save({ session });
 
       const payIn = new PayIn({
@@ -166,7 +164,7 @@ exports.updatePaymentRequestStatus = async (req, res) => {
       });
       await payIn.save({ session });
 
-      const ledgerEntry = new mainWallet({
+      const ledgerEntry = new Transaction({
         user_id: user._id,
         transaction_type: 'credit',
         amount: currentBalance,
@@ -194,7 +192,6 @@ exports.updatePaymentRequestStatus = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.error("❌ Error updating payment request status:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

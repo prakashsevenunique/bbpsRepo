@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    isAccountActive: {
+    isSpecial: {
       type: Boolean,
       default: false
     },
@@ -127,20 +127,6 @@ const userSchema = new mongoose.Schema(
       type: Map,
       of: String,
       default: {},
-    },
-    clientId: {
-      type: String,
-      unique: true,
-      required: true,
-      immuable: true,
-      default: () => crypto.randomBytes(16).toString('hex'),
-    },
-    clientSecret: {
-      type: String,
-      required: true,
-      immuable: true,
-      select: false, // Exclude from queries by default
-      default: () => crypto.randomBytes(32).toString('hex'),
     }
   },
   {
