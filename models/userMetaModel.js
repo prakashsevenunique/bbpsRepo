@@ -41,10 +41,20 @@ const userMetaSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
+        tds: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
         distributorCommission: {
           type: Number,
           required: true,
           min: 0,
+        },
+        status:{
+          type: String,
+          enum: ["active", "inactive"],
+          default: "active",
         },
         _id: false
       },

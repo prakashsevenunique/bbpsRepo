@@ -12,8 +12,6 @@ const serviceRoutes = require("./routes/serviceRoutes");
 
 const rechargeRoute = require("./routes/rechargeRoute");
 const billerRoutes = require("./routes/bbps/billerRoutes");
-const DmtRoutes = require("./routes/Dmt&Aeps/DmtRoutes");
-const BusBooking = require("./routes/Busbooking/BusBooking");
 const apiLogger = require("./middleware/apiLogger.js");
 const authenticateToken = require("./middleware/verifyToken.js");
 
@@ -31,10 +29,12 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(apiLogger);
 
-
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/user", require("./routes/userMetaRoutes.js"));
 app.use("/api/v1/kyc", KycRoutes);
+
+
+
 app.use("/api/v1/service", serviceRoutes);
 app.use("/api/v1/e-wallet", require("./routes/WalletRoutes.js"));
 app.use("/api/v1/payment", require("./routes/mainWalletRoutes.js"));
@@ -48,9 +48,7 @@ app.use("/api/v1", require("./routes/sprintDmt&AepsRoutes.js"));
 
 
 app.use("/api/recharge", rechargeRoute);
-app.use("/api/biller", billerRoutes);
-app.use("/api/Dmt", DmtRoutes);
-app.use("/api/Busbooking", BusBooking);
+app.use("/api/biller", billerRoutes);;
 
 
 app.get("/", (req, res) => res.json("welcome ranjay sir"));

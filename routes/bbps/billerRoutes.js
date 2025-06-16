@@ -4,7 +4,6 @@ const router = express.Router();
 
 const multer = require("multer");
 const { processBillerData, getBillerByCategory, getBillerById } = require("../../controllers/bbps/billInfoXl");
-const { getOperatorList, doRecharge, getBillOperatorList, payBill, fetchBillDetails, checkBillPaymentStatus, fetchLICBillDetails, payLICBill, checkLICBillPaymentStatus, checkRechargeStatus } = require("../../controllers/bbps/paySprint_BBps/Bbps");
 
 
 
@@ -32,22 +31,6 @@ router.get("/:category",  getBillerByCategory);
 // getall billername by category
 router.get("/billerdata/:billerId",  getBillerById);
 
-
-// paysprint bbps service 
-router.get("/sprint/operator",getOperatorList)
-router.post("/sprint/do-recharge",doRecharge)
-router.post("/sprint/status-enquiry",checkRechargeStatus)
-
-// paysprint bbps bill 
-router.post("/get-bill-operator-list", getBillOperatorList);
-router.post("/sprint/fetchbill", fetchBillDetails);
-router.post("/sprint/paybill", payBill);
-router.post("/sprint/bill-status", checkBillPaymentStatus);
-
-// paysprint bbps lic 
-router.post("/sprint/lic-bill",   fetchLICBillDetails);
-router.post("/sprint/lic-pay",   payLICBill);
-router.post("/sprint/lic-status",   checkLICBillPaymentStatus);
 
 
 module.exports = router; 

@@ -104,6 +104,15 @@ const blockTicket = async (req, res) => {
     'bookingType', 'paymentMode', 'serviceCharge'
   ];
 
+  for (const field of requiredFields) {
+    if (!req.body[field]) {
+      return res.status(400).json({
+        status: "failed",
+        message: `${field} is required`
+      });
+    }
+  }
+
   try {
     const response = await axios.post(
       "https://sit.paysprint.in/service-api/api/v1/service/bus/ticket/blockticket",
@@ -112,7 +121,9 @@ const blockTicket = async (req, res) => {
     );
     handleResponse(res, response.data, "Ticket blocked successfully");
   } catch (error) {
-    res.status(500).json(handleApiError(error));
+  console.log("Error in blockTicket:", error);
+    return res.status(500).json(handleApiError(error));
+  
   }
 };
 

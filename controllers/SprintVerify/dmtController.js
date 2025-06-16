@@ -3,6 +3,7 @@ const generatePaysprintJWT = require("../../services/Dmt&Aeps/TokenGenrate");
 const { encryptPidData } = require('../../services/jwtService');
 const crypto = require('crypto');
 const dmtBeneficiary = require('../../models/dmtBeneficiary');
+const DmtReport = require('../../models/dmtTransactionModel.js');
 
 const headers = {
     'Token': generatePaysprintJWT(),
@@ -259,51 +260,87 @@ exports.sendTransactionOtp = async (req, res, next) => {
 };
 
 exports.performTransaction = async (req, res, next) => {
-    try {
-        const {
-            mobile,
-            referenceid,
-            bene_id,
-            txntype,
-            amount,
-            otp,
-            stateresp,
-            pincode = "110015",
-            address = "New Delhi",
-            dob = "01-01-1990",
-            gst_state = "07",
-            lat = "28.786543",
-            long = "78.345678"
-        } = req.body;
+  try {
+    const {
+      mobile,
+      referenceid,
+      bene_id,
+      txntype,
+      amount,
+      otp,
+      stateresp,
+      pincode = "110015",
+      address = "New Delhi",
+      dob = "01-01-1990",
+      gst_state = "07",
+      lat = "28.786543",
+      long = "78.345678"
+    } = req.body;
 
-        if (!mobile || !referenceid || !bene_id || !txntype || !amount || !otp || !stateresp) {
-            return res.status(400).json({ error: true, message: "Missing required fields" });
-        }
-
-        const payload = {
-            mobile,
-            referenceid,
-            bene_id,
-            txntype,
-            amount,
-            otp,
-            stateresp,
-            pincode,
-            address,
-            dob,
-            gst_state,
-            lat,
-            long
-        };
-
-        const response = await axios.post(
-            'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact',
-            payload, { headers }
-        );
-        return res.json(response.data);
-    } catch (error) {
-        return next(error)
+    if (!mobile || !referenceid || !bene_id || !txntype || !amount || !otp || !stateresp) {
+      return res.status(400).json({ error: true, message: "Missing required fields" });
     }
+
+    const payload = {
+      mobile,
+      referenceid,
+      bene_id,
+      txntype,
+      amount,
+      otp,
+      stateresp,
+      pincode,
+      address,
+      dob,
+      gst_state,
+      lat,
+      long
+    };
+
+    const response = await axios.post(
+      'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact',
+      payload,
+      { headers }
+    );
+
+    const result = response.data;
+
+    if (result.status === true && result.txn_status === 1) {
+      const report = new DmtReport({
+        user_id: req.user.id,
+        status: result.status,
+        ackno: result.ackno,
+        referenceid: result.referenceid,
+        utr: result.utr,
+        txn_status: result.txn_status,
+        benename: result.benename,
+        remarks: result.remarks,
+        message: result.message,
+        remitter: result.remitter,
+        account_number: result.account_number,
+        gatewayCharges: {
+          bc_share: parseFloat(result.bc_share || 0),
+          txn_amount: parseFloat(result.txn_amount || amount),
+          customercharge: parseFloat(result.customercharge || 0),
+          gst: parseFloat(result.gst || 0),
+          tds: parseFloat(result.tds || 0),
+          netcommission: parseFloat(result.netcommission || 0),
+        },
+        charges: {
+          distributor: 0,
+          admin: 0
+        },
+        NPCI_response_code: result.NPCI_response_code || '',
+        bank_status: result.bank_status || ''
+      });
+
+      await report.save();
+    }
+
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
 };
 
 exports.TrackTransaction = async (req, res, next) => {

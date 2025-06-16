@@ -21,7 +21,7 @@ router.post('/login', loginController);
 router.put('/profile',authenticateToken, updateProfileController);
 router.get('/profile',authenticateToken, getUserController);
 router.get('/users',authenticateToken,authorizeRoles("Admin","Distributor"), getUsersWithFilters);
-router.patch('/user/:id/status',authenticateToken,authorizeRoles("Admin"), updateUserStatus);
+router.put('/user/:id/status',authenticateToken,authorizeRoles("Admin"), updateUserStatus);
 router.put('/user/:id',authenticateToken,authorizeRoles("Admin"), updateUserDetails);
 
 module.exports = router;

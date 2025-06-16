@@ -273,7 +273,6 @@ const updateUserStatus = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error in updateUserStatus:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

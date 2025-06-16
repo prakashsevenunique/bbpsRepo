@@ -81,20 +81,7 @@ router.post(
 );
 
 router.post(
-    "/blockticket",
-    celebrate({
-        [Segments.BODY]: Joi.object({
-            availableTripId: Joi.string().required(),
-            boardingPointId: Joi.string().required(),
-            droppingPointId: Joi.string().required(),
-            source: Joi.string().required(),
-            destination: Joi.string().required(),
-            inventoryItems: Joi.array().min(1).required(),
-            bookingType: Joi.string().required(),
-            paymentMode: Joi.string().required(),
-            serviceCharge: Joi.number().required(),
-        }),
-    }), authenticateToken,
+    "/blockticket", authenticateToken,
     busController.blockTicket
 );
 

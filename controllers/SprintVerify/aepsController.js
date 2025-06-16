@@ -4,54 +4,21 @@ const crypto = require('crypto');
 const generatePaysprintJWT = require('../../services/Dmt&Aeps/TokenGenrate');
 const CryptoJS = require('crypto-js');
 
-
-function encryptWithCryptoJS(data, key, iv) {
-    const plaintext = JSON.stringify(data);
-
-    const encrypted = CryptoJS.AES.encrypt(plaintext, CryptoJS.enc.Utf8.parse(key), {
-        iv: CryptoJS.enc.Utf8.parse(iv),
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
-    });
-
-    return encrypted.toString(); // returns base64 ciphertext
-}
-
 const headers = {
     'Token': generatePaysprintJWT(),
     'Authorisedkey': 'MGY1MTVmNWM3Yjk5MTdlYTcyYjk5NmUzZjYwZDVjNWE=',
 }
 
 const BASE_URL = 'https://sit.paysprint.in/service-api/api/v1/service/onboard/onboardnew/getonboardurl';
-const RESPONSE_CALLBACK_URL = 'https://58e8-2401-4900-889a-511c-7849-49f2-bf5e-665e.ngrok-free.app/api/v1/aeps/onboard/callback';
 const JWT_SECRET = 'UFMwMDE3OTIzYzdhYmFiZWU5OWJkMzAzNTEyNDQ0MmNmMGFiMWUyOA==';
 
+const AES_KEY = '557aefe5593170ad'; // Must be 16 characters
+const AES_IV = '7c4851aad3e91b9c';  // Must be 16 characters
 
 const WADH = "18f4CEiXeXcfGXvgWA/blxD+w2pw7hfQPY45JMytkPw=";
 
 // https://58e8-2401-4900-889a-511c-7849-49f2-bf5e-665e.ngrok-free.app/api/v1/aeps/onboard/callback?data=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJyZWZubyI6IjE3NDk3MjkzNjM1OTgiLCJ0eG5pZCI6IiIsInN0YXR1cyI6IjAiLCJzdGF0dXNiYW5rMiI6IjAiLCJtb2JpbGUiOiI4MzAyODQ1OTc2IiwicGFydG5lcmlkIjoiUFMwMDE3OTIiLCJtZXJjaGFudGNvZGUiOiIxMDEiLCJiYW5rIjp7IkJhbmsxIjowLCJCYW5rMiI6MH19.43H-EtcfhddKtBwYPXvTmETJg6NkrTyMVAMbYMPiSf8
 
-const AES_KEY = '7c4851aad3e91b9c'; // Must be 16 characters
-const AES_IV = '557aefe5593170ad';  // Must be 16 characters
-
-function encryptPidData(piddata) {
-    const cipher = crypto.createCipheriv("aes-128-cbc", Buffer.from(AES_KEY, "utf8"), Buffer.from(AES_IV, "utf8"));
-    let encrypted = cipher.update(piddata, "utf8", "base64");
-    encrypted += cipher.final("base64");
-    console.log(encrypted)
-    return encrypted;
-}
-
-function decryptWithCryptoJS(encryptedText) {
-    const decrypted = CryptoJS.AES.decrypt(encryptedText, CryptoJS.enc.Utf8.parse(AES_KEY), {
-        iv: CryptoJS.enc.Utf8.parse(AES_IV),
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
-    });
-
-    const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
-    return JSON.parse(decryptedText); // convert back to object
-}
 
 const decryptJWT = (token, secretKey) => {
     try {
@@ -62,27 +29,30 @@ const decryptJWT = (token, secretKey) => {
     }
 };
 
-function encryptForPaySprint(data, key, iv) {
-    const json = JSON.stringify(data);
+function encryptPidData(piddata) {
+    const cipher = crypto.createCipheriv("aes-128-cbc", Buffer.from(AES_KEY, "utf8"), Buffer.from(AES_IV, "utf8"));
+    let encrypted = cipher.update(piddata, "utf8", "base64");
+    encrypted += cipher.final("base64");
+    console.log(encrypted)
+    return encrypted;
+}
 
+function encrypt(data) {
+    const jsonData = JSON.stringify(data); // Convert object to JSON string
     const cipher = crypto.createCipheriv(
         'aes-128-cbc',
-        Buffer.from(key, 'utf8'),
-        Buffer.from(iv, 'utf8')
+        Buffer.from(AES_KEY, 'utf8'),
+        Buffer.from(AES_IV, 'utf8')
     );
 
-    const encrypted = Buffer.concat([
-        cipher.update(json, 'utf8'),
-        cipher.final()
-    ]);
-
-    const base64Encoded = encrypted.toString('base64');
-    return base64Encoded;
+    let encrypted = cipher.update(jsonData, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    return encrypted; // This is the encrypted Base64 string
 }
 
 
 exports.generateOnboardURL = async (req, res) => {
-    const { merchantcode, mobile, email, firm } = req.body;
+    const { merchantcode, mobile, email, firm ,callback} = req.body;
 
     const payload = {
         merchantcode,
@@ -90,7 +60,7 @@ exports.generateOnboardURL = async (req, res) => {
         is_new: "0",
         email,
         firm,
-        callback: RESPONSE_CALLBACK_URL
+        callback
     };
 
     try {
@@ -137,6 +107,8 @@ exports.transactionCallback = async (req, res) => {
     return res.json({ status: 200, message: "Transaction completed successfully" });
 };
 
+
+console.log(decryptJWT('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJyZWZubyI6IjE3NTAwNTU4OTg5MDMiLCJ0eG5pZCI6IiIsInN0YXR1cyI6IjAiLCJzdGF0dXNiYW5rMiI6IjAiLCJtb2JpbGUiOiI3NDc5NDA3MDEwIiwicGFydG5lcmlkIjoiUFMwMDE3OTIiLCJtZXJjaGFudGNvZGUiOiIxMTAiLCJiYW5rIjp7IkJhbmsxIjowLCJCYW5rMiI6MH19.wz5eJOkGZPQcTKMaAwQzRUjKcVA9hPZUd3quYRZgOk8', JWT_SECRET))
 exports.onboardResponseCallback = async (req, res) => {
     const { data } = req.query;
     let decryptedData;
@@ -198,6 +170,7 @@ exports.activateMerchant = async (req, res, next) => {
         });
         return res.status(response.status).json(response.data);
     } catch (error) {
+        console.error("Error activating merchant:", error);
         return next(error)
     }
 };
@@ -270,11 +243,8 @@ exports.registerMerchant = async (req, res, next) => {
             data,
             ipaddress
         };
-        console.log(payload)
 
-        const encryptedBody =  encryptForPaySprint(payload, AES_KEY, AES_IV)
-
-        console.log(encryptedBody)
+        const encryptedBody = encrypt(payload)
 
         const response = await axios.post(
             'https://sit.paysprint.in/service-api/api/v1/service/aeps/kyc/Twofactorkyc/registration',
@@ -283,7 +253,6 @@ exports.registerMerchant = async (req, res, next) => {
         );
         return res.status(response.status).json(response.data);
     } catch (error) {
-        console.log(error)
         return next(error)
     }
 };
@@ -299,7 +268,7 @@ exports.authenticateMerchant = async (req, res) => {
             referenceno,
             submerchantid,
             is_iris,
-            timestamp=Date.now(),
+            timestamp = Date.now(),
             data,
             ipaddress
         } = req.body;
@@ -326,7 +295,7 @@ exports.authenticateMerchant = async (req, res) => {
             ipaddress
         };
 
-        const encryptedBody = encryptWithCryptoJS(payload, AES_KEY, AES_IV);
+        const encryptedBody = encrypt(payload);
 
         const response = await axios.post(
             'https://sit.paysprint.in/service-api/api/v1/service/aeps/kyc/Twofactorkyc/authentication',
@@ -357,7 +326,7 @@ exports.balanceEnquiry = async (req, res, next) => {
             referenceno,
             accessmodetype = "SITE",
             requestremarks = "",
-            data=`<PidData>....</PidData>`,
+            data = `<PidData>....</PidData>`,
             pipe = "bank1",
             timestamp = new Date().toISOString().slice(0, 19).replace("T", " "),
             transactiontype = "BE",
@@ -376,13 +345,11 @@ exports.balanceEnquiry = async (req, res, next) => {
             transactiontype, submerchantid, is_iris
         };
 
-        console.log("dkjhfkjdhfkjhdfkjhdsjhkf",plainBody)
-
-        const encryptedBody = encryptForPaySprint(plainBody, AES_KEY, AES_IV);
+        const encryptedBody = encrypt(plainBody);
 
         const { data: psResp } = await axios.post(
             "https://sit.paysprint.in/service-api/api/v1/service/aeps/balanceenquiry/index",
-            { body:"5JmgzXzuAwmVJIYWen6PqIDjpdpElxMe/jBE6AVd3VWHheqFeOzvs0YXRy3d7TKajjXdA2RM/anXpsxaiboteI/n8+X5T0qJZD76+hWAvYVxnsyJQoxgSV6wjNNGRVNKsXjTxl7JIiruXbvVFbo0QBHt0J4vZ1pTY5p1RLT/Sdy3N28fuUEIg1seIhgh6akbaaOQZc95ILQ8o/gQgrGXY0TEiem6m42onyDnS0awxd85FvVoS6yBYA1i4b9T71sqLfDBBzG1meTGhpBXvCRiNYIz/i1KJ9dDYaYUqyJMwtSYYFKGF7CmHL5QvUt3rfKwubwcGFj/bD6UoF9OaRrKdOS3tJbZjneirGTKDj8j1WAoIK3hlaKqQ5KkbJs99B+PE9YHLkdrOu4JcBaenkeTmSNjT2WojfSv5i4PjANVcwAqYx5da19x6peanTvEXlMuyN8IJX/4dIAFSj5uFku0OPj8O8ues87BKqEBrRg90FKxT2Md0r+j0KB0q85W9YP1uB6TgLn2lsmzdlksy/R39w==" },
+            { body: encryptedBody },
             { headers }
         );
         return res.json(psResp);
@@ -433,7 +400,7 @@ exports.withdrawWithAuth = async (req, res, next) => {
             amount,
             is_iris
         };
-        const encryptedBody = encryptAES128(plainBody, AES_KEY, AES_IV);
+        const encryptedBody = encrypt(plainBody);
         const response = await axios.post(
             "https://sit.paysprint.in/service-api/api/v1/service/aeps/authcashwithdraw/index",
             { body: encryptedBody },
@@ -442,7 +409,6 @@ exports.withdrawWithAuth = async (req, res, next) => {
                 timeout: 180000
             }
         );
-        console.log("AEPS Auth Withdraw Success", { referenceno, response: response.data });
         return res.json(response.data);
     } catch (err) {
         return res.status(500).json({ error: true, message: "Internal Server Error", details: err.message });
@@ -490,7 +456,7 @@ exports.getMiniStatement = async (req, res) => {
             is_iris
         };
 
-        const encryptedBody = encryptAES128(plainBody, AES_KEY, AES_IV);
+        const encryptedBody = encrypt(plainBody);
 
         const response = await axios.post(
             "https://sit.paysprint.in/service-api/api/v1/service/aeps/ministatement/index",
@@ -500,10 +466,7 @@ exports.getMiniStatement = async (req, res) => {
                 timeout: 180000
             }
         );
-
-        console.log("Mini Statement Success", { referenceno, response: response.data });
         return res.json(response.data);
-
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -522,7 +485,6 @@ exports.getAepsBankList = async (req, res, next) => {
         );
         return res.json(response.data);
     } catch (error) {
-        console.log(error)
         return next(error)
     }
 };
