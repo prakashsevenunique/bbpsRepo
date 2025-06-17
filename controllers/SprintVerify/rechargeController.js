@@ -425,7 +425,7 @@ exports.payBill = async (req, res, next) => {
   }
 };
 
-exports.checkBillPaymentStatus = async (req, res,next) => {
+exports.checkBillPaymentStatus = async (req, res, next) => {
   const { referenceid } = req.body;
 
   if (!referenceid) {

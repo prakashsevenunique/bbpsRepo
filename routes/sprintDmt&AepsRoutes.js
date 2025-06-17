@@ -3,6 +3,7 @@ const router = express.Router();
 const authenticateToken = require('../middleware/verifyToken.js');
 const { queryRemitter, remitterEkyc, registerRemitter, registerBeneficiary, fetchBeneficiary, BeneficiaryById, deleteBeneficiary, PennyDrop, sendTransactionOtp, performTransaction, TrackTransaction, RefundOtp, Refund } = require('../controllers/SprintVerify/dmtController.js');
 const { generateOnboardURL, transactionCallback, onboardResponseCallback, checkOnboardStatus, activateMerchant, registerMerchant, authenticateMerchant, balanceEnquiry, withdrawWithAuth, getMiniStatement, getAepsBankList } = require('../controllers/SprintVerify/aepsController.js');
+const reportController = require('../controllers/reportsController.js');
 
 router.post('/d1/query', authenticateToken, queryRemitter);
 router.post('/d1/kyc', authenticateToken, remitterEkyc);
@@ -31,5 +32,9 @@ router.post("/aeps/balance", authenticateToken, balanceEnquiry)
 router.post("/aeps/withdraw", authenticateToken, withdrawWithAuth)
 router.post("/aeps/miniStatement", authenticateToken, getMiniStatement)
 router.get("/aeps/banklist", authenticateToken, getAepsBankList)
+
+
+//reports
+router.get("/aeps/merchants", authenticateToken,reportController.getAllOnboardTransactions)
 
 module.exports = router;

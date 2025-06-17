@@ -4,6 +4,10 @@ const { encryptPidData } = require('../../services/jwtService');
 const crypto = require('crypto');
 const dmtBeneficiary = require('../../models/dmtBeneficiary');
 const DmtReport = require('../../models/dmtTransactionModel.js');
+const PayOut = require("../../models/payOutModel.js")
+const Transaction = require("../../models/transactionModel.js");
+const userModel = require("../../models/userModel.js");
+const mongoose = require('mongoose');
 
 const headers = {
     'Token': generatePaysprintJWT(),
@@ -258,90 +262,154 @@ exports.sendTransactionOtp = async (req, res, next) => {
         return next(error)
     }
 };
-
 exports.performTransaction = async (req, res, next) => {
-  try {
-    const {
-      mobile,
-      referenceid,
-      bene_id,
-      txntype,
-      amount,
-      otp,
-      stateresp,
-      pincode = "110015",
-      address = "New Delhi",
-      dob = "01-01-1990",
-      gst_state = "07",
-      lat = "28.786543",
-      long = "78.345678"
-    } = req.body;
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!mobile || !referenceid || !bene_id || !txntype || !amount || !otp || !stateresp) {
-      return res.status(400).json({ error: true, message: "Missing required fields" });
+    try {
+        const {
+            mobile,
+            referenceid,
+            bene_id,
+            txntype,
+            amount,
+            otp,
+            stateresp,
+            pincode = "110015",
+            address = "New Delhi",
+            dob = "01-01-1990",
+            gst_state = "07",
+            lat = "28.786543",
+            long = "78.345678"
+        } = req.body;
+
+        // ✅ Step 1: Validate Required Inputs
+        const missingFields = [];
+        if (!mobile) missingFields.push('mobile');
+        if (!referenceid) missingFields.push('referenceid');
+        if (!bene_id) missingFields.push('bene_id');
+        if (!txntype) missingFields.push('txntype');
+        if (!amount) missingFields.push('amount');
+        if (!otp) missingFields.push('otp');
+        if (!stateresp) missingFields.push('stateresp');
+
+        if (missingFields.length > 0) {
+            return res.status(400).json({ error: true, message: `Missing required fields: ${missingFields.join(', ')}` });
+        }
+        
+        const user = await userModel.findById(userId).session(session);
+        if (!user) {
+            return res.status(404).json({ error: true, message: "User not found" });
+        }
+
+        if (user.eWallet < Number(amount)) {
+            return res.status(400).json({ error: true, message: "Insufficient wallet balance" });
+        }
+
+        // ✅ Step 3: Deduct Wallet & Save Debit Transaction
+        user.eWallet -= Number(amount);
+        await user.save({ session });
+
+        const [debitTxn] = await Transaction.create([{
+            user_id: userId,
+            transaction_type: "debit",
+            amount: Number(amount),
+            balance_after: user.eWallet,
+            payment_mode: "wallet",
+            transaction_reference_id: referenceid,
+            description: "DMT Transfer initiated",
+            status: "Pending"
+        }], { session });
+
+        // ✅ Step 4: Log PayOut Entry
+        await new PayOut({
+            userId,
+            amount: Number(amount),
+            reference: referenceid,
+            trans_mode: txntype,
+            name: user.name,
+            mobile: user.mobileNumber,
+            email: user.email,
+            status: "Pending",
+            charges: 0,
+            remark: `Money Transfer for beneficiary ID ${bene_id}`
+        }).save({ session });
+
+        const payload = {
+            mobile, referenceid, bene_id, txntype, amount,
+            otp, stateresp, pincode, address, dob,
+            gst_state, lat, long
+        };
+
+        const response = await axios.post(
+            'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact',
+            payload,
+            { headers }
+        );
+
+        const result = response?.data || {};
+
+        // ✅ Step 6: Handle Response from API
+        if (result.status === true && result.txn_status === 1) {
+            await DmtReport.create([{
+                user_id: userId,
+                status: result.status,
+                ackno: result.ackno,
+                referenceid: result.referenceid,
+                utr: result.utr,
+                txn_status: result.txn_status,
+                benename: result.benename,
+                remarks: result.remarks,
+                message: result.message,
+                remitter: result.remitter,
+                account_number: result.account_number,
+                gatewayCharges: {
+                    bc_share: parseFloat(result.bc_share || 0),
+                    txn_amount: parseFloat(result.txn_amount || amount),
+                    customercharge: parseFloat(result.customercharge || 0),
+                    gst: parseFloat(result.gst || 0),
+                    tds: parseFloat(result.tds || 0),
+                    netcommission: parseFloat(result.netcommission || 0),
+                },
+                charges: {
+                    distributor: 0,
+                    admin: 0
+                },
+                NPCI_response_code: result.NPCI_response_code || '',
+                bank_status: result.bank_status || ''
+            }], { session });
+
+            // ✅ Update PayOut & Transaction Status to Success
+            await Promise.all([
+                PayOut.updateOne({ reference: referenceid }, { $set: { status: "Success" } }).session(session),
+                Transaction.updateOne({ transaction_reference_id: referenceid }, { $set: { status: "Success" } }).session(session)
+            ]);
+
+            debitTxn.status = "Success";
+            await debitTxn.save({ session });
+        } else {
+            user.eWallet += Number(amount);
+            await user.save({ session });
+
+            await Promise.all([
+                Transaction.updateOne({ transaction_reference_id: referenceid }, { $set: { status: "Failed" } }).session(session),
+                PayOut.updateOne({ reference: referenceid }, { $set: { status: "Failed" } }).session(session)
+            ]);
+
+            throw new Error(result.message || "Transaction failed at provider");
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+        return res.status(200).json(result);
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(500).json({ error: true, message: error.message || "Transaction error" });
     }
-
-    const payload = {
-      mobile,
-      referenceid,
-      bene_id,
-      txntype,
-      amount,
-      otp,
-      stateresp,
-      pincode,
-      address,
-      dob,
-      gst_state,
-      lat,
-      long
-    };
-
-    const response = await axios.post(
-      'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact',
-      payload,
-      { headers }
-    );
-
-    const result = response.data;
-
-    if (result.status === true && result.txn_status === 1) {
-      const report = new DmtReport({
-        user_id: req.user.id,
-        status: result.status,
-        ackno: result.ackno,
-        referenceid: result.referenceid,
-        utr: result.utr,
-        txn_status: result.txn_status,
-        benename: result.benename,
-        remarks: result.remarks,
-        message: result.message,
-        remitter: result.remitter,
-        account_number: result.account_number,
-        gatewayCharges: {
-          bc_share: parseFloat(result.bc_share || 0),
-          txn_amount: parseFloat(result.txn_amount || amount),
-          customercharge: parseFloat(result.customercharge || 0),
-          gst: parseFloat(result.gst || 0),
-          tds: parseFloat(result.tds || 0),
-          netcommission: parseFloat(result.netcommission || 0),
-        },
-        charges: {
-          distributor: 0,
-          admin: 0
-        },
-        NPCI_response_code: result.NPCI_response_code || '',
-        bank_status: result.bank_status || ''
-      });
-
-      await report.save();
-    }
-
-    return res.json(result);
-  } catch (error) {
-    return next(error);
-  }
 };
+
 
 exports.TrackTransaction = async (req, res, next) => {
     try {

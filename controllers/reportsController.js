@@ -1,5 +1,6 @@
 const BbpsHistory = require('../models/bbpsModel.js');
 const DmtReport = require('../models/dmtTransactionModel.js');
+const OnboardTransaction = require('../models/aepsModels/onboardingMerchants.js');
 const { Parser } = require('json2csv');
 
 exports.getBbpsReport = async (req, res) => {
@@ -128,36 +129,28 @@ exports.getAllDmtReports = async (req, res, next) => {
 
     const role = req.user.role;
     const userId = req.user.id;
-
     const filter = {};
-
     if (role === 'Admin') {
       if (queryUserId) filter.user_id = queryUserId;
     } else {
       filter.user_id = userId;
     }
-
-    // ✅ Additional Filters
     if (status !== undefined) filter.status = status === 'true';
     if (referenceid) filter.referenceid = referenceid;
     if (remitter) filter.remitter = remitter;
-
     if (startDate && endDate) {
       filter.createdAt = {
         $gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
         $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
       };
     }
-
     const reportsQuery = DmtReport.find(filter)
-      .populate('user_id', 'name') // ✅ Populate only name
+      .populate('user_id', 'name')
       .sort({ createdAt: -1 });
-
 
     if (export_csv === 'true') {
       const allReports = await reportsQuery.exec();
 
-      // Map user name to flat field
       const csvData = allReports.map((r) => ({
         user_name: r.user_id?.name || '',
         referenceid: r.referenceid,
@@ -217,15 +210,63 @@ exports.getAllDmtReports = async (req, res, next) => {
   }
 };
 
-
-exports.getDmtReportById = async (req, res) => {
+exports.getAllOnboardTransactions = async (req, res, next) => {
   try {
-    const report = await DmtReport.findById(req.params.id);
-    if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
+    const {
+      page = 1,
+      limit = 10,
+      merchantcode,
+      mobile,
+      status,
+      startDate,
+      endDate,
+      user_id: queryUserId,
+    } = req.query;
 
-    res.status(200).json({ success: true, data: report });
+    const role = req.user.role;
+    const userId = req.user.id;
+
+    const filter = {};
+
+    if (role === 'Admin') {
+      if (queryUserId) filter.user_id = queryUserId;
+    } else {
+      filter.user_id = userId;
+    }
+
+    if (merchantcode) {
+      filter.merchantcode = { $regex: merchantcode, $options: 'i' };
+    }
+    if (mobile) filter.mobile = mobile;
+    if (status) filter.status = status;
+    if (startDate && endDate) {
+      filter.createdAt = {
+        $gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
+        $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+      };
+    }
+    const transactions = await OnboardTransaction.find(filter)
+      .populate('user_id', 'name')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const count = await OnboardTransaction.countDocuments(filter);
+
+    const formatted = transactions.map((r) => {
+      const obj = r.toObject();
+      obj.user_name = r.user_id?.name || '';
+      delete obj.user_id;
+      return obj;
+    });
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+      pagination: { total: count, page: Number(page), limit: Number(limit) }
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return next(err);
   }
 };
 
