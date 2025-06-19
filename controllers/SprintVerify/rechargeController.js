@@ -5,6 +5,7 @@ const PayOut = require("../../models/payOutModel.js")
 const Transaction = require("../../models/transactionModel.js");
 const userModel = require("../../models/userModel.js");
 const mongoose = require("mongoose");
+const { getApplicableServiceCharge, applyServiceCharges } = require("../../utils/chargeCaluate.js");
 
 const headers = {
   'Token': generatePaysprintJWT(),
@@ -95,31 +96,39 @@ exports.getOperatorList = async (req, res, next) => {
 };
 
 exports.doRecharge = async (req, res, next) => {
-  const { operator: operatorName, canumber, amount, category } = req.body;
+  const { operator: operatorName, canumber, amount, category, mpin } = req.body;
   const userId = req.user.id;
+
+  if (!operatorName || !canumber || !amount || !category || !mpin) {
+    return res.status(400).json({ status: "fail", message: "Missing required fields" });
+  }
+  let commissions = await getApplicableServiceCharge(userId, category == "mobile" ? 'Mobile Recharge' : "Dth Recharge")
+  const charges = applyServiceCharges(amount, commissions)
+
   const referenceid = generateReferenceId();
 
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const user = await userModel.findById(userId).session(session);
-    if (!user || user.eWallet < amount) {
-      throw new Error("Insufficient wallet balance");
+    const user = await userModel.findOne({ _id: userId, mpin }).session(session);
+
+    if (!user || user.eWallet < (amount + charges.totalDeducted)) {
+      throw new Error("Wrong mpin or Insufficient wallet balance");
     }
 
-    user.eWallet -= amount;
+    user.eWallet -= (amount + charges.totalDeducted);
     await user.save({ session });
 
     const debitTxn = await Transaction.create(
       [{
         user_id: userId,
         transaction_type: "debit",
-        amount,
+        amount: (amount + charges.totalDeducted),
         balance_after: user.eWallet,
         payment_mode: "wallet",
         transaction_reference_id: referenceid,
-        description: `Recharge initiated for ${canumber} (${operatorName})`,
+        description: `Recharge for ${canumber} (${operatorName})`,
         status: "Pending"
       }],
       { session }
@@ -149,6 +158,7 @@ exports.doRecharge = async (req, res, next) => {
         operator: operatorName,
         customerNumber: canumber,
         amount,
+        charges: charges.totalDeducted,
         transactionId: referenceid,
         extraDetails: { mobileNumber: canumber },
         status: "Pending"
@@ -175,13 +185,13 @@ exports.doRecharge = async (req, res, next) => {
     await debitTxn[0].save({ session });
 
     if (status === "Failed") {
-      user.eWallet += amount;
+      user.eWallet += (amount + charges.totalDeducted);
       await user.save({ session });
 
       await Transaction.create([{
         user_id: userId,
         transaction_type: "credit",
-        amount,
+        amount: (amount + charges.totalDeducted),
         balance_after: user.eWallet,
         payment_mode: "wallet",
         transaction_reference_id: `${referenceid}-refund`,
@@ -204,8 +214,8 @@ exports.doRecharge = async (req, res, next) => {
         mobile: user.mobileNumber,
         email: user.email,
         status: "Success",
-        charges: 0,
-        remark: `Mobile Recharge for ${customerNumber}`
+        charges: charges.totalDeducted,
+        remark: `Mobile Recharge for ${canumber}`
       });
       await newPayOut.save({ session });
     }
@@ -330,30 +340,37 @@ exports.fetchBillDetails = async (req, res) => {
 };
 
 exports.payBill = async (req, res, next) => {
-  const { operator, canumber, amount, referenceid, latitude, longitude, mode = "online", bill_fetch } = req.body;
+  const { operator, canumber, amount, referenceid, latitude, longitude, mode = "online", bill_fetch, mpin } = req.body;
   if (!operator || !canumber || !amount || !referenceid || !latitude || !longitude || !bill_fetch) {
     return res.status(400).json({ status: "fail", message: "Missing required fields" });
   }
 
   const userId = req.user.id;
+
+  let commissions = await getApplicableServiceCharge(userId, "Bill Payment")
+  const charges = applyServiceCharges(amount, commissions)
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const user = await userModel.findById(userId).session(session);
-    if (!user || user.eWallet < amount) throw new Error("Insufficient wallet balance");
+    const user = await userModel.findOne({ _id: userId, mpin }).session(session);
 
-    user.eWallet -= amount;
+    if (!user || user.eWallet < (amount + charges.totalDeducted)) {
+      throw new Error("Wrong mpin or Insufficient wallet balance");
+    }
+
+    user.eWallet -= (amount + charges.totalDeducted);
     await user.save({ session });
 
     const debitTxn = await Transaction.create([{
       user_id: userId,
       transaction_type: "debit",
-      amount,
+      amount: (amount + charges.totalDeducted),
       balance_after: user.eWallet,
       payment_mode: "wallet",
       transaction_reference_id: referenceid,
-      description: `Bill payment initiated for ${canumber} (${operator})`,
+      description: `Bill payment for ${canumber} (${operator})`,
       status: "Pending"
     }], { session });
 
@@ -376,18 +393,18 @@ exports.payBill = async (req, res, next) => {
 
     // Store history
     await BbpsHistory.create([{
-      userId, rechargeType: "bill payment", operator, customerNumber: canumber, amount,
+      userId, rechargeType: "bill payment", operator, customerNumber: canumber, amount, charges: charges.totalDeducted,
       transactionId: referenceid,
       extraDetails: bill_fetch, status
     }], { session });
 
     if (status === "Failed") {
-      user.eWallet += amount;
+      user.eWallet += (amount + charges.totalDeducted);
       await user.save({ session });
       await Transaction.create([{
         user_id: userId,
         transaction_type: "credit",
-        amount,
+        amount: (amount + charges.totalDeducted),
         balance_after: user.eWallet,
         payment_mode: "wallet",
         transaction_reference_id: `${referenceid}-refund`,

@@ -54,6 +54,6 @@ router.post('/', celebrate(serviceValidator), authenticateToken, authorizeRoles(
 router.get('/', authenticateToken, serviceController.getAllServices);
 router.get('/:id', authenticateToken, authorizeRoles('Admin'), serviceController.getServiceById);
 router.delete('/:id', authenticateToken, authorizeRoles('Admin'), serviceController.deleteService);
-router.patch("/:id/status", authenticateToken, authorizeRoles('Admin'),  serviceController.setServiceStatus);
+router.put("/:id/status", authenticateToken, authorizeRoles('Admin'),  serviceController.setServiceStatus);
 
 module.exports = router;

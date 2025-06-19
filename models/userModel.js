@@ -49,7 +49,7 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
-    documents:[String],
+    documents: [String],
     mpin: {
       type: Number,
       required: true,
@@ -122,6 +122,11 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: 0,
+      set: v => {
+        const num = Number(v);
+        if (isNaN(num)) return v;
+        return Number(num.toFixed(2));
+      }
     },
     meta: {
       type: Map,

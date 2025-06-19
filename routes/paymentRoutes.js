@@ -7,6 +7,6 @@ const authenticateToken = require("../middleware/verifyToken");
 router.post("/", authenticateToken, controller.createPaymentRequest);
 router.get("/:id", authenticateToken, controller.getPaymentRequestById);
 router.get("/", authenticateToken, controller.listPaymentRequests);
-router.patch("/:id/status", authenticateToken, controller.updatePaymentRequestStatus);
+router.put("/:id/status", authenticateToken, controller.updatePaymentRequestStatus);
 
 module.exports = router;

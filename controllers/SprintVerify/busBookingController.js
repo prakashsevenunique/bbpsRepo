@@ -4,6 +4,7 @@ const { startSession } = require('mongoose');
 const userModel = require("../../models/userModel");
 const Transaction = require("../../models/transactionModel");
 const bbpsModel = require("../../models/bbpsModel");
+const { getApplicableServiceCharge, applyServiceCharges } = require("../../utils/chargeCaluate");
 
 const headers = {
   Token: generatePaysprintJWT(),
@@ -121,9 +122,9 @@ const blockTicket = async (req, res) => {
     );
     handleResponse(res, response.data, "Ticket blocked successfully");
   } catch (error) {
-  console.log("Error in blockTicket:", error);
+    console.log("Error in blockTicket:", error);
     return res.status(500).json(handleApiError(error));
-  
+
   }
 };
 
@@ -131,24 +132,27 @@ const bookTicket = async (req, res) => {
   const session = await startSession();
   session.startTransaction();
 
+  let commissions = await getApplicableServiceCharge(userId, "Bus Booking")
+  const charges = applyServiceCharges(amount, commissions)
+
   try {
     const userId = req.user.id;
-    const { amount, passenger_phone, passenger_email, ...bookingData } = req.body;
+    const { amount, passenger_phone, passenger_email, mpin, ...bookingData } = req.body;
     const referenceid = generateReferenceId();
 
-    const user = await userModel.findById(userId).session(session).exec();
+    const user = await userModel.findOne({ _id: userId, mpin }).session(session).exec();
 
-    if (!user || user.eWallet < amount) {
-      throw new Error("Insufficient wallet balance");
+    if (!user || user.eWallet < (amount + charges.totalDeducted)) {
+      throw new Error("Wrong Mpin or Insufficient wallet balance");
     }
 
-    user.eWallet -= amount;
+    user.eWallet -= (amount + charges.totalDeducted);
     await user.save({ session });
 
     const debitTxn = await Transaction.create([{
       user_id: userId,
       transaction_type: "debit",
-      amount,
+      amount: (amount + charges.totalDeducted),
       balance_after: user.eWallet,
       payment_mode: "wallet",
       transaction_reference_id: referenceid,
@@ -174,6 +178,7 @@ const bookTicket = async (req, res) => {
       operator: "Bus",
       customerNumber: passenger_phone,
       amount,
+      charges: charges.totalDeducted,
       transactionId: referenceid,
       extraDetails: {
         mobileNumber: passenger_phone,
@@ -187,13 +192,13 @@ const bookTicket = async (req, res) => {
     await debitTxn[0].save({ session });
 
     if (status === "Failed") {
-      user.eWallet += amount;
+      user.eWallet += (amount + charges.totalDeducted);
       await user.save({ session });
 
       await Transaction.create([{
         user_id: userId,
         transaction_type: "credit",
-        amount,
+        amount:(amount + charges.totalDeducted),
         balance_after: user.eWallet,
         payment_mode: "wallet",
         transaction_reference_id: referenceid + "-refund",
@@ -208,6 +213,7 @@ const bookTicket = async (req, res) => {
       const newPayOut = new PayOut({
         userId,
         amount,
+        charges: charges.totalDeducted,
         reference: referenceid,
         account: null,
         trans_mode: "WALLET" || "IMPS",
@@ -217,7 +223,7 @@ const bookTicket = async (req, res) => {
         email: user.email,
         status: "Success",
         charges: 0,
-        remark:  `Bus ticket booking with referenceId ${referenceid}`
+        remark: `Bus ticket booking with referenceId ${referenceid}`
       });
       await newPayOut.save({ session });
     }

@@ -103,6 +103,40 @@ exports.transactionCallback = async (req, res) => {
     return res.json({ status: 200, message: "Transaction completed successfully" });
 };
 
+exports.updateOnboardTransaction = async (req, res, next) => {
+    try {
+        const { id, refno, merchantcode, status, txnid, partnerid, callback, email, firm, bank } = req.body;
+
+        if (!id) {
+            return res.status(400).json({ error: true, message: "Transaction ID is required" });
+        }
+
+        const updateFields = {};
+
+        if (status) updateFields.status = status;
+        if (txnid) updateFields.txnid = txnid;
+        if (partnerid) updateFields.partnerid = partnerid;
+        if (callback) updateFields.callback = callback;
+        if (email) updateFields.email = email;
+        if (firm) updateFields.firm = firm;
+        if (bank) updateFields.bank = bank;
+        updateFields.callbackReceivedAt = new Date();
+
+        const updatedTransaction = await OnboardTransaction.findOneAndUpdate({ merchantcode, _id: id }, { $set: updateFields }, { new: true });
+
+        if (!updatedTransaction) {
+            return res.status(404).json({ error: true, message: "Transaction not found" });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Transaction updated successfully",
+        });
+    } catch (error) {
+        return next(error);
+    }
+};
+
 
 exports.onboardResponseCallback = async (req, res) => {
     const { data } = req.query;
@@ -245,6 +279,7 @@ exports.registerMerchant = async (req, res, next) => {
         return next(error)
     }
 };
+
 
 exports.authenticateMerchant = async (req, res) => {
     try {

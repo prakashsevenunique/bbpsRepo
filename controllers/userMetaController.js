@@ -1,8 +1,18 @@
 const UserMeta = require("../models/userMetaModel.js");
 const mongoose = require("mongoose");
 
+// 🔹 Create or Update UserMeta
 exports.upsertUserMeta = async (req, res) => {
-  const { userId, ipWhitelist, services, preferences } = req.body;
+  const {
+    userId,
+    ipWhitelist,
+    services,
+    preferences,
+    dmtEnabled,
+    aepsEnabled,
+    dmtCommission,
+    aepsCommission
+  } = req.body;
 
   try {
     let userMeta = await UserMeta.findOne({ userId });
@@ -13,11 +23,20 @@ exports.upsertUserMeta = async (req, res) => {
         ipWhitelist,
         services,
         preferences,
+        dmtEnabled,
+        aepsEnabled,
+        dmtCommission,
+        aepsCommission
       });
     } else {
-      userMeta.ipWhitelist = ipWhitelist || userMeta.ipWhitelist;
-      userMeta.preferences = preferences || userMeta.preferences;
-      userMeta.services = services || userMeta.services;
+      userMeta.ipWhitelist = ipWhitelist ?? userMeta.ipWhitelist;
+      userMeta.preferences = preferences ?? userMeta.preferences;
+      userMeta.services = services ?? userMeta.services;
+
+      if (dmtEnabled !== undefined) userMeta.dmtEnabled = dmtEnabled;
+      if (aepsEnabled !== undefined) userMeta.aepsEnabled = aepsEnabled;
+      if (dmtCommission) userMeta.dmtCommission = dmtCommission;
+      if (aepsCommission) userMeta.aepsCommission = aepsCommission;
 
       await userMeta.save();
     }
@@ -29,10 +48,15 @@ exports.upsertUserMeta = async (req, res) => {
   }
 };
 
+// 🔹 Get Single UserMeta by userId
 exports.getUserMeta = async (req, res) => {
   try {
     const { userId } = req.params;
-    const userMeta = await UserMeta.findOne({ userId }).populate("services.serviceId");
+
+    const userMeta = await UserMeta.findOne({ userId })
+      .populate("services.serviceId")
+      .populate("dmtCommission")
+      .populate("aepsCommission");
 
     if (!userMeta) {
       return res.status(404).json({ success: false, message: "UserMeta not found" });
@@ -45,6 +69,7 @@ exports.getUserMeta = async (req, res) => {
   }
 };
 
+// 🔹 Remove a service entry from userMeta
 exports.removeUserService = async (req, res) => {
   const { userId, serviceId } = req.body;
 
@@ -62,6 +87,7 @@ exports.removeUserService = async (req, res) => {
   }
 };
 
+// 🔹 Get All UserMeta with pagination and filters
 exports.getAllUserMeta = async (req, res) => {
   try {
     const {
@@ -71,12 +97,13 @@ exports.getAllUserMeta = async (req, res) => {
       serviceId,
       chargeType,
       ip,
-      hasService,       // true or false
+      hasService,
       startDate,
-      endDate,
+      endDate
     } = req.query;
 
     const filter = {};
+
     if (userId) {
       filter.userId = new mongoose.Types.ObjectId(userId);
     }
@@ -86,7 +113,7 @@ exports.getAllUserMeta = async (req, res) => {
         $elemMatch: {
           ...(serviceId && { serviceId: new mongoose.Types.ObjectId(serviceId) }),
           ...(chargeType && { chargeType }),
-        },
+        }
       };
     }
 
@@ -112,6 +139,8 @@ exports.getAllUserMeta = async (req, res) => {
 
     const data = await UserMeta.find(filter)
       .populate("services.serviceId")
+      .populate("dmtCommission")
+      .populate("aepsCommission")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -121,8 +150,9 @@ exports.getAllUserMeta = async (req, res) => {
       total,
       page: parseInt(page),
       pages: Math.ceil(total / limit),
-      data,
+      data
     });
+
   } catch (error) {
     console.error("Error in getAllUserMeta:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });

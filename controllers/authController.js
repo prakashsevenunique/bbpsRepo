@@ -3,6 +3,7 @@ const { generateOtp, verifyOtp } = require("../services/otpService");
 const { sendOtp } = require("../services/smsService");
 const { generateJwtToken } = require("../services/jwtService");
 const { parse } = require('json2csv');
+const userMetaModel = require("../models/userMetaModel.js");
 
 const sendOtpController = async (req, res) => {
   try {
@@ -90,6 +91,7 @@ const registerUser = async (req, res) => {
     if (user) {
       return res.status(400).json({ message: "User already exists" });
     }
+
     let adminUser;
     if (!distributorId) {
       adminUser = await User.findOne({ role: 'Admin' });
@@ -150,11 +152,12 @@ const updateProfileController = async (req, res) => {
 
 const getUserController = async (req, res) => {
   try {
-    let user = await User.findById(req.user.id);
+    let user = await User.findById(req.user.id, '-mpin -commissionPackage -meta -aadharDetails -panDetails');
+    let userMeta = await userMetaModel.findOne({ userId: req.user.id }).populate('services.serviceId', '-providers -serviceFor') || {};
     if (!user) {
       return res.status(404).json({ message: "No user found" });
     }
-    return res.status(200).json(user);
+    return res.status(200).json({ user, userMeta });
   } catch (error) {
     console.error("Error in getUserController:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -197,7 +200,7 @@ const getUsersWithFilters = async (req, res) => {
     const loggedInUser = req.user;
 
     if (loggedInUser.role === 'Distributor') {
-      filter.distributorId = loggedInUser._id;
+      filter.distributorId = loggedInUser.id;
     }
 
     const sort = {};

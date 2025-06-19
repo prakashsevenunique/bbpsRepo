@@ -46,12 +46,12 @@ app.use("/api/v1/s3", require("./routes/sprintRoutes.js"));
 app.use("/api/v1/kyc", authenticateToken, require("./routes/kycvideo.js"));
 app.use("/api/v1", require("./routes/sprintDmt&AepsRoutes.js"));
 
+app.use("/api/v1/commission", require("./routes/commisionRoutes.js"));
 
 app.use("/api/recharge", rechargeRoute);
 app.use("/api/biller", billerRoutes);;
 
-
-app.get("/", (req, res) => res.json("welcome ranjay sir"));
+app.get("/", (req, res) => res.json("welcome"));
 
 mongoose
   .connect(process.env.MONGO_URI)

@@ -51,7 +51,11 @@ const userMetaSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
-        status:{
+        adminCommission: {
+          type: Number,
+          min: 0,
+        },
+        status: {
           type: String,
           enum: ["active", "inactive"],
           default: "active",
@@ -59,6 +63,22 @@ const userMetaSchema = new mongoose.Schema(
         _id: false
       },
     ],
+    dmtEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    aepsEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    dmtCommission: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CommissionPackage',
+    },
+    aepsCommission: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CommissionPackage',
+    },
     preferences: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
@@ -66,7 +86,7 @@ const userMetaSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    versionKey: false,
+    versionKey: false
   }
 );
 

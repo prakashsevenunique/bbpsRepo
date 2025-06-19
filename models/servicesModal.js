@@ -6,6 +6,7 @@ const serviceSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      enum: ['Mobile Recharge', 'Dth Recharge', 'AEPS', 'DMT', 'Bus Booking', 'Bill Payment', 'A5', 'A6', 'A7', 'A8'],
       trim: true
     },
     description: {
@@ -51,9 +52,16 @@ const serviceSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
+        adminCommission:{
+          type: Number,
+          min: 0,
+        },
         gst: {
           type: Number,
-          required: true,
+          min: 0,
+        },
+        tds:{
+          type: Number,
           min: 0,
         }
       }

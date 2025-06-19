@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authenticateToken = require('../middleware/verifyToken.js');
 const { queryRemitter, remitterEkyc, registerRemitter, registerBeneficiary, fetchBeneficiary, BeneficiaryById, deleteBeneficiary, PennyDrop, sendTransactionOtp, performTransaction, TrackTransaction, RefundOtp, Refund } = require('../controllers/SprintVerify/dmtController.js');
-const { generateOnboardURL, transactionCallback, onboardResponseCallback, checkOnboardStatus, activateMerchant, registerMerchant, authenticateMerchant, balanceEnquiry, withdrawWithAuth, getMiniStatement, getAepsBankList } = require('../controllers/SprintVerify/aepsController.js');
+const { generateOnboardURL, transactionCallback, onboardResponseCallback, checkOnboardStatus, activateMerchant, registerMerchant, authenticateMerchant, balanceEnquiry, withdrawWithAuth, getMiniStatement, getAepsBankList, updateOnboardTransaction } = require('../controllers/SprintVerify/aepsController.js');
 const reportController = require('../controllers/reportsController.js');
 
 router.post('/d1/query', authenticateToken, queryRemitter);
@@ -25,6 +25,7 @@ router.post("/aeps/txn/callback", transactionCallback)
 router.get("/aeps/onboard/callback", onboardResponseCallback)
 router.post("/aeps/onboard/activate", authenticateToken, activateMerchant)
 router.post("/aeps/onboard/status", authenticateToken, checkOnboardStatus)
+router.put("/aeps/onboard/update", authenticateToken, updateOnboardTransaction)
 
 router.post("/aeps/register", authenticateToken, registerMerchant)
 router.post("/aeps/register/auth", authenticateToken, authenticateMerchant)

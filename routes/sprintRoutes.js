@@ -36,7 +36,8 @@ router.post('/recharge/dorecharge', celebrate({
         operator: Joi.string().required(),
         canumber: Joi.string().required(),
         amount: Joi.number().required(),
-        category: Joi.string().required()
+        category: Joi.string().required(),
+        mpin: Joi.string().required(),
     })
 }), authenticateToken, doRecharge);
 

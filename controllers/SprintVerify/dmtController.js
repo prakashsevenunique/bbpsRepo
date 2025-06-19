@@ -8,6 +8,8 @@ const PayOut = require("../../models/payOutModel.js")
 const Transaction = require("../../models/transactionModel.js");
 const userModel = require("../../models/userModel.js");
 const mongoose = require('mongoose');
+const getDmtOrAepsMeta = require('../../utils/aeps&DmtCommmsion.js');
+const { calculateCommissionFromSlabs } = require('../../utils/chargeCaluate.js');
 
 const headers = {
     'Token': generatePaysprintJWT(),
@@ -134,7 +136,6 @@ exports.registerBeneficiary = async (req, res, next) => {
         }
         return res.json({ ...response.data });
     } catch (error) {
-        console.error(error.response?.data || error.message);
         return next(error)
     }
 };
@@ -197,27 +198,161 @@ exports.BeneficiaryById = async (req, res, next) => {
 };
 
 exports.PennyDrop = async (req, res, next) => {
+
+    const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
+
+    if (!commissionPackage?.isActive) {
+        return res.status(400).json({ success: false, message: "DMT package not active for this user" });
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
-        const { mobile, accno, bankid, benename, referenceid, pincode, address, dob, gst_state, bene_id } = req.body;
+        const {
+            mobile,
+            accno,
+            bankid,
+            benename,
+            referenceid,
+            pincode,
+            address,
+            dob,
+            gst_state,
+            bene_id
+        } = req.body;
 
-        if (!mobile) {
-            return res.status(400).json({ error: true, message: "mobile is required" });
-        }
-        const user = await userModel.findById(req?.user?.id)
-        if (!user || user.eWallet < 10) {
-            throw new Error("To verify the beneficiary you have to have 10 rupees in your account");
+        const amount = commissionPackage?.dmtPennyDrop || 0;
+        const userId = req.user.id;
+
+        const missingFields = [];
+        if (!mobile) missingFields.push("mobile");
+        if (!accno) missingFields.push("accno");
+        if (!benename) missingFields.push("benename");
+        if (!referenceid) missingFields.push("referenceid");
+        if (missingFields.length > 0) {
+            return res.status(400).json({ error: true, message: `Missing fields: ${missingFields.join(", ")}` });
         }
 
-        const response = await axios.post(
+        const user = await userModel.findById(userId).session(session);
+        if (!user || user.eWallet < amount) {
+            throw new Error("Insufficient wallet balance (Minimum ₹10 required)");
+        }
+
+        user.eWallet -= amount;
+        await user.save({ session });
+
+        const [debitTxn] = await Transaction.create([{
+            user_id: userId,
+            transaction_type: "debit",
+            amount,
+            balance_after: user.eWallet,
+            payment_mode: "wallet",
+            transaction_reference_id: referenceid,
+            description: "Penny Drop Verification for DMT",
+            status: "Pending"
+        }], { session });
+
+        await PayOut.create([{
+            userId,
+            amount,
+            reference: referenceid,
+            trans_mode: "IMPS",
+            name: benename,
+            mobile,
+            email: user.email,
+            status: "Pending",
+            charges: 0,
+            remark: `Penny Drop verification for ${accno} for DMT`
+        }], { session });
+
+        // ✅ API call
+        const payload = {
+            mobile,
+            accno,
+            bankid,
+            benename,
+            referenceid,
+            pincode,
+            address,
+            dob,
+            gst_state,
+            bene_id
+        };
+
+        const { data: result } = await axios.post(
             'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/beneficiary/registerbeneficiary/benenameverify',
-            { mobile, accno, bankid, benename, referenceid, pincode, address, dob, gst_state, bene_id },
+            payload,
             { headers }
         );
-        return res.json({ ...response.data });
+
+        if (result.status === true && result.response_code == 1) {
+            await DmtReport.create([{
+                user_id: userId,
+                status: result.status,
+                ackno: result.ackno || "",
+                referenceid: result.referenceid || referenceid,
+                utr: result.utr || "",
+                txn_status: 1,
+                benename: result.beneficiary_name || benename,
+                remarks: result.message || "Verified",
+                message: result.message || "",
+                remitter: mobile,
+                account_number: accno,
+                gatewayCharges: {
+                    bc_share: 0,
+                    txn_amount: amount,
+                    customercharge: 0,
+                    gst: 0,
+                    tds: 0,
+
+
+                    netcommission: 0,
+                },
+                charges: {
+                    distributor: 0,
+                    admin: 0
+                },
+                NPCI_response_code: result.response_code,
+                bank_status: result.message || ""
+            }], { session });
+
+            await Promise.all([
+                PayOut.updateOne({ reference: referenceid }, { $set: { status: "Success" } }).session(session),
+                Transaction.updateOne({ transaction_reference_id: referenceid }, { $set: { status: "Success" } }).session(session)
+            ]);
+
+            debitTxn.status = "Success";
+            await debitTxn.save({ session });
+
+        } else {
+            user.eWallet += amount;
+            await user.save({ session });
+
+            await Promise.all([
+                Transaction.updateOne({ transaction_reference_id: referenceid }, { $set: { status: "Failed" } }).session(session),
+                PayOut.updateOne({ reference: referenceid }, { $set: { status: "Failed" } }).session(session)
+            ]);
+
+            throw new Error(result.message || "Penny Drop failed");
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(200).json({
+            success: true,
+            message: "Penny drop verification completed",
+            data: result
+        });
+
     } catch (error) {
-        return next(error)
+        await session.abortTransaction();
+        session.endSession();
+        return next(error);
     }
 };
+
 
 exports.sendTransactionOtp = async (req, res, next) => {
     try {
@@ -262,7 +397,15 @@ exports.sendTransactionOtp = async (req, res, next) => {
         return next(error)
     }
 };
+
 exports.performTransaction = async (req, res, next) => {
+
+    const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
+
+    if (!commissionPackage?.isActive) {
+        return res.status(400).json({ success: false, message: "DMT package not active for this user" });
+    }
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -283,7 +426,8 @@ exports.performTransaction = async (req, res, next) => {
             long = "78.345678"
         } = req.body;
 
-        // ✅ Step 1: Validate Required Inputs
+        let userId = req.user.id;
+
         const missingFields = [];
         if (!mobile) missingFields.push('mobile');
         if (!referenceid) missingFields.push('referenceid');
@@ -296,18 +440,22 @@ exports.performTransaction = async (req, res, next) => {
         if (missingFields.length > 0) {
             return res.status(400).json({ error: true, message: `Missing required fields: ${missingFields.join(', ')}` });
         }
-        
+
+        let commission = calculateCommissionFromSlabs(amount, commissionPackage?.slabs || [])
+
         const user = await userModel.findById(userId).session(session);
         if (!user) {
             return res.status(404).json({ error: true, message: "User not found" });
         }
 
-        if (user.eWallet < Number(amount)) {
+        if (user.eWallet < (Number(amount) + commission.totalCommission)) {
             return res.status(400).json({ error: true, message: "Insufficient wallet balance" });
         }
 
-        // ✅ Step 3: Deduct Wallet & Save Debit Transaction
-        user.eWallet -= Number(amount);
+        user.eWallet -= (Number(amount) + commission.totalCommission);
+
+        console.log(Number(amount) + commission.totalCommission)
+
         await user.save({ session });
 
         const [debitTxn] = await Transaction.create([{
@@ -317,11 +465,10 @@ exports.performTransaction = async (req, res, next) => {
             balance_after: user.eWallet,
             payment_mode: "wallet",
             transaction_reference_id: referenceid,
-            description: "DMT Transfer initiated",
+            description: "DMT Transfer",
             status: "Pending"
         }], { session });
 
-        // ✅ Step 4: Log PayOut Entry
         await new PayOut({
             userId,
             amount: Number(amount),
@@ -331,7 +478,7 @@ exports.performTransaction = async (req, res, next) => {
             mobile: user.mobileNumber,
             email: user.email,
             status: "Pending",
-            charges: 0,
+            charges: commission.totalCommission,
             remark: `Money Transfer for beneficiary ID ${bene_id}`
         }).save({ session });
 
@@ -373,13 +520,12 @@ exports.performTransaction = async (req, res, next) => {
                 },
                 charges: {
                     distributor: 0,
-                    admin: 0
+                    admin: commission.totalCommission
                 },
                 NPCI_response_code: result.NPCI_response_code || '',
                 bank_status: result.bank_status || ''
             }], { session });
 
-            // ✅ Update PayOut & Transaction Status to Success
             await Promise.all([
                 PayOut.updateOne({ reference: referenceid }, { $set: { status: "Success" } }).session(session),
                 Transaction.updateOne({ transaction_reference_id: referenceid }, { $set: { status: "Success" } }).session(session)
@@ -388,7 +534,7 @@ exports.performTransaction = async (req, res, next) => {
             debitTxn.status = "Success";
             await debitTxn.save({ session });
         } else {
-            user.eWallet += Number(amount);
+            user.eWallet += Number(amount + commission.totalCommission);
             await user.save({ session });
 
             await Promise.all([
@@ -406,10 +552,9 @@ exports.performTransaction = async (req, res, next) => {
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(500).json({ error: true, message: error.message || "Transaction error" });
+        return next(error)
     }
 };
-
 
 exports.TrackTransaction = async (req, res, next) => {
     try {
