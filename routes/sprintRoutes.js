@@ -27,7 +27,7 @@ router.get('/recharge/browseplan', authenticateToken, celebrate({
     })
 }), browsePlan);
 
-router.post('/recharge/dthPlan', authenticateToken,dthPlan);
+router.post('/recharge/dthPlan', authenticateToken, dthPlan);
 
 router.get('/recharge/opertor', authenticateToken, getOperatorList);
 
@@ -95,7 +95,8 @@ router.post(
             base_fare: Joi.number().positive().required(),
             blockKey: Joi.string().required(),
             passenger_phone: Joi.string().required(),
-            passenger_email: Joi.string().email().required()
+            passenger_email: Joi.string().email().required(),
+            mpin: Joi.string().required()
         }),
     }), authenticateToken,
     busController.bookTicket

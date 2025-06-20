@@ -10,7 +10,7 @@ const commissionSlabSchema = new mongoose.Schema({
 }, { _id: false });
 
 const commissionPackageSchema = new mongoose.Schema({
-  service: { type: String, enum: ['DMT', 'AEPS'], required: true },
+  service: { type: String, enum: ['DMT', 'AEPS', 'PAYIN', 'PAYOUT'], required: true },
   packageName: { type: String, required: true, unique: true },
   gst: { type: Number, default: 18 },
   tds: { type: Number, default: 5 },

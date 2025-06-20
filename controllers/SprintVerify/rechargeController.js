@@ -98,19 +98,15 @@ exports.getOperatorList = async (req, res, next) => {
 exports.doRecharge = async (req, res, next) => {
   const { operator: operatorName, canumber, amount, category, mpin } = req.body;
   const userId = req.user.id;
-
   if (!operatorName || !canumber || !amount || !category || !mpin) {
     return res.status(400).json({ status: "fail", message: "Missing required fields" });
   }
-  let commissions = await getApplicableServiceCharge(userId, category == "mobile" ? 'Mobile Recharge' : "Dth Recharge")
-  const charges = applyServiceCharges(amount, commissions)
-
   const referenceid = generateReferenceId();
-
   const session = await mongoose.startSession();
   session.startTransaction();
-
   try {
+    let commissions = await getApplicableServiceCharge(userId, category == "mobile" ? 'Mobile Recharge' : "Dth Recharge")
+    const charges = applyServiceCharges(amount, commissions)
     const user = await userModel.findOne({ _id: userId, mpin }).session(session);
 
     if (!user || user.eWallet < (amount + charges.totalDeducted)) {
@@ -344,16 +340,13 @@ exports.payBill = async (req, res, next) => {
   if (!operator || !canumber || !amount || !referenceid || !latitude || !longitude || !bill_fetch) {
     return res.status(400).json({ status: "fail", message: "Missing required fields" });
   }
-
   const userId = req.user.id;
-
-  let commissions = await getApplicableServiceCharge(userId, "Bill Payment")
-  const charges = applyServiceCharges(amount, commissions)
-
   const session = await mongoose.startSession();
   session.startTransaction();
-
   try {
+
+    let commissions = await getApplicableServiceCharge(userId, "Bill Payment")
+    const charges = applyServiceCharges(amount, commissions)
     const user = await userModel.findOne({ _id: userId, mpin }).session(session);
 
     if (!user || user.eWallet < (amount + charges.totalDeducted)) {

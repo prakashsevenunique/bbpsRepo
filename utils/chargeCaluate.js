@@ -91,12 +91,12 @@ const getApplicableServiceCharge = async (userId, serviceName) => {
 
   return {
     source: "Service",
-    chargeType: matchedProvider.chargeType,
-    serviceCharges: matchedProvider.serviceCharges,
-    gst: matchedProvider.gst,
-    tds: matchedProvider.tds,
-    distributorCommission: matchedProvider.distributorCommission,
-    adminCommission: matchedProvider.adminCommission,
+    chargeType: matchedProvider.chargeType || "fixed",
+    serviceCharges: matchedProvider.serviceCharges || 0,
+    gst: matchedProvider.gst || 0,
+    tds: matchedProvider.tds || 0,
+    distributorCommission: matchedProvider.distributorCommission || 0,
+    adminCommission: matchedProvider.adminCommission || 0 ,
   };
 };
 

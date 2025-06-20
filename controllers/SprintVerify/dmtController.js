@@ -199,11 +199,6 @@ exports.BeneficiaryById = async (req, res, next) => {
 
 exports.PennyDrop = async (req, res, next) => {
 
-    const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
-
-    if (!commissionPackage?.isActive) {
-        return res.status(400).json({ success: false, message: "DMT package not active for this user" });
-    }
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -222,6 +217,8 @@ exports.PennyDrop = async (req, res, next) => {
             bene_id
         } = req.body;
 
+        const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
+        
         const amount = commissionPackage?.dmtPennyDrop || 0;
         const userId = req.user.id;
 

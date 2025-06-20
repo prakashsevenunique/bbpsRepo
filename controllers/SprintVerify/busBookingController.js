@@ -131,13 +131,11 @@ const blockTicket = async (req, res) => {
 const bookTicket = async (req, res) => {
   const session = await startSession();
   session.startTransaction();
-
-  let commissions = await getApplicableServiceCharge(userId, "Bus Booking")
-  const charges = applyServiceCharges(amount, commissions)
-
   try {
     const userId = req.user.id;
     const { amount, passenger_phone, passenger_email, mpin, ...bookingData } = req.body;
+    let commissions = await getApplicableServiceCharge(req.user.id, "Bus Booking")
+    const charges = applyServiceCharges(amount, commissions)
     const referenceid = generateReferenceId();
 
     const user = await userModel.findOne({ _id: userId, mpin }).session(session).exec();
@@ -198,7 +196,7 @@ const bookTicket = async (req, res) => {
       await Transaction.create([{
         user_id: userId,
         transaction_type: "credit",
-        amount:(amount + charges.totalDeducted),
+        amount: (amount + charges.totalDeducted),
         balance_after: user.eWallet,
         payment_mode: "wallet",
         transaction_reference_id: referenceid + "-refund",
