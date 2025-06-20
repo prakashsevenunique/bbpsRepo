@@ -1,34 +1,37 @@
-  const User = require("../models/userModel");
 const { default: axios } = require("axios");
+const User = require("../models/userModel");
+const jwt = require('jsonwebtoken');
 require("dotenv").config();
 
-const aadhaarVerify = async (req, res) => {
+
+function generateToken() {
+  return jwt.sign({}, "5834792b3edd4127848907565a6dc94d08bfd9cb7a8b48e5c2e1de1790995f64", {
+    algorithm: "HS256",
+  });
+};
+
+const aadhaarVerify = async (req, res, next) => {
   const { aadharNumber } = req.body;
+  const id_number = aadharNumber
   if (!aadharNumber) {
     res.send("Aadhar Number is required");
   }
   try {
-    const generateOtpResponse = await axios.post(
-      "https://kyc-api.surepass.io/api/v1/aadhaar-v2/generate-otp",
-      {
-        id_number: aadharNumber,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.TOKEN}`,
-        },
+    const generateOtpResponse = await axios.post(`https://api.7uniqueverfiy.com/api/verify/adhar/send/otp`, { id_number: id_number, }, {
+      headers: {
+        "client-id": 'Seven013',
+        "authorization": `Bearer ${generateToken()}`,
+        "x-env": "production",
+        "Content-Type": "application/json",
       }
-    );
+    });
     return res.send({
       message: "OTP send successful",
       data: generateOtpResponse.data,
     });
   } catch (error) {
-    console.error("Error during Aadhaar verification:", error.message);
-    return res
-      .status(500)
-      .send("An error occurred during Aadhaar verification");
+    console.log(error);
+    return next(error)
   }
 };
 
@@ -38,19 +41,18 @@ const submitAadharOTP = async (req, res) => {
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   }
-  const submitOtpResponse = await axios.post(
-    "https://kyc-api.surepass.io/api/v1/aadhaar-v2/submit-otp",
-    {
-      client_id: client_id,
-      otp: otp,
+  const generateOtpResponse = await axios.post(`http://localhost:5050/api/verify/aadhaar_verifyotp
+`, {
+    method: "POST",
+    headers: {
+
+      "client-id": 'Seven013',
+      "authorization": `Bearer ${generateToken()}`,
+      "x-env": "production",
+      // ❌ DO NOT manually set Content-Type for FormData
     },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.TOKEN}`,
-      },
-    }
-  );
+    body: requestData,
+  });
   const nameFromAadhar = submitOtpResponse?.data?.data;
 
   if (
@@ -82,7 +84,7 @@ const verifyBank = async (req, res) => {
         .status(400)
         .json({ success: false, message: "IFSC number or ID is missing" });
     }
-    const url = "https://kyc-api.surepass.io/api/v1/bank-verification/";
+    const url = "http://localhost:5050/api/verify/bankVerify/v2";
     const response = await axios.post(
       url,
       {
@@ -92,8 +94,11 @@ const verifyBank = async (req, res) => {
       },
       {
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.TOKEN}`,
+
+          "client-id": 'Seven013',
+          "authorization": `Bearer ${generateToken()}`,
+          "x-env": "production",
+          // ❌ DO NOT manually set Content-Type for FormData
         },
       }
     );
@@ -126,7 +131,7 @@ const verifyPAN = async (req, res) => {
         .json({ success: false, message: "IFSC number missing" });
     }
 
-    const url = "https://kyc-api.surepass.io/api/v1/pan/pan";
+    const url = "http://localhost:5050/api/verify/pan_verify";
 
     const response = await axios.post(
       url,

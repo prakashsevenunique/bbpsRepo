@@ -40,10 +40,11 @@ app.use("/api/v1/e-wallet", require("./routes/WalletRoutes.js"));
 app.use("/api/v1/payment", require("./routes/mainWalletRoutes.js"));
 app.use("/api/v1/query", require("./routes/queryRoutes.js"));
 app.use("/api/v1/payment_req", require("./routes/paymentRoutes.js"));
-app.use("/api/v1/billAvenue", require("./routes/billAvenueRoutes.js"));
+app.use("/api/v1/billAvenue", require("./routes/bbps/billAvenueRoutes.js"));
 app.use("/api/v1/bbps", require("./routes/bbpsRoutes.js"));
 app.use("/api/v1/s3", require("./routes/sprintRoutes.js"));
 app.use("/api/v1/kyc", authenticateToken, require("./routes/kycvideo.js"));
+app.use("/api/v1", require("./routes/sprintDmt&AepsRoutes.js"));
 app.use("/api/v1", require("./routes/sprintDmt&AepsRoutes.js"));
 
 app.use("/api/v1/commission", require("./routes/commisionRoutes.js"));

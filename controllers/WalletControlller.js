@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Transaction = require('../models/transactionModel.js');
 const User = require('../models/userModel.js');
 const { parse } = require('json2csv');
-const mainWallet = require('../models/mainWalletModel.js');
+
 
 exports.getWalletTransactions = async (req, res) => {
   try {
@@ -174,143 +174,8 @@ exports.createWalletTransaction = async (req, res) => {
   }
 };
 
-exports.transferToEwallet = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const userId = req.user.id;
-    const { amount, mpin } = req.body;
-
-    if (!amount || !mpin) {
-      return res.status(400).json({ success: false, message: 'Amount and MPIN are required.' });
-    }
-
-    const user = await User.findById(userId).session(session);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-
-
-    if (user.mainWallet < amount) {
-      return res.status(400).json({ success: false, message: 'Insufficient balance in Main Wallet.' });
-    }
-
-    user.mainWallet -= amount;
-    user.eWallet += amount;
-    await user.save({ session });
-
-    const reference = `MW2EW-${Date.now()}`;
-
-    await mainWallet.create([{
-      user_id: user._id,
-      transaction_type: 'debit',
-      amount,
-      balance_after: user.mainWallet,
-      status: 'Success',
-      payment_mode: 'wallet',
-      transaction_id: reference,
-      description: `Transfer to eWallet with transation id ${reference}`,
-      meta: { type: 'main-to-ewallet' }
-    }], { session });
-
-    await Transaction.create([{
-      user_id: user._id,
-      transaction_type: 'credit',
-      amount,
-      balance_after: user.eWallet,
-      status: 'Success',
-      payment_mode: 'wallet',
-      transaction_reference_id: reference,
-      description: `Received from Main Wallet with transation id ${reference}`,
-    }], { session });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Amount transferred to eWallet successfully.',
-      reference
-    });
-  } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
 
 const CHARGE_TYPE = 'percentage';
 const CHARGE_VALUE = 1.5;
 
-exports.ewalletToMainTransfer = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
 
-  try {
-    const userId = req.user.id;
-    const { amount, mpin } = req.body;
-
-    if (!amount || !mpin) {
-      return res.status(400).json({ success: false, message: 'Amount and MPIN are required.' });
-    }
-
-    const user = await User.findById(userId).session(session);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-
-    const isMpinValid = (mpin === user.mpin);
-    if (!isMpinValid) {
-      return res.status(401).json({ success: false, message: 'Invalid MPIN' });
-    }
-
-    const charge = CHARGE_TYPE === 'flat'
-      ? CHARGE_VALUE
-      : (amount * CHARGE_VALUE) / 100;
-
-    const totalDebit = amount + charge;
-
-    if (user.eWallet < totalDebit) {
-      return res.status(400).json({ success: false, message: 'Insufficient balance in eWallet.' });
-    }
-
-    const reference = `EW2MW-${Date.now()}`;
-
-    user.eWallet -= totalDebit;
-    user.mainWallet += amount;
-    await user.save({ session });
-
-    await Transaction.create([
-      {
-        user_id: user._id,
-        transaction_type: 'debit',
-        amount: user.eWallet - totalDebit,
-        balance_after: user.eWallet,
-        status: 'Success',
-        payment_mode: 'wallet',
-        transaction_reference_id: reference,
-        description: `Transferred to Main Wallet with txnid ${reference}`
-      }
-    ], { session });
-
-    await mainWallet.create([{
-      user_id: user._id,
-      transaction_type: 'credit',
-      amount: user.mainWallet - amount,
-      balance_after: user.mainWallet,
-      status: 'Success',
-      payment_mode: 'wallet',
-      transaction_id: reference,
-      description: `Received from eWallet with txnId ${reference}`
-    }], { session });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Amount transferred to Main Wallet successfully.'
-    });
-  } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};

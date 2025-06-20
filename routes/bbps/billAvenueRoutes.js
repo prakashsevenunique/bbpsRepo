@@ -1,5 +1,5 @@
 const express = require('express');
-const { validate, viewbill, initiateRecharge, operatorLogo, getPlans, getPlanTypes } = require('../controllers/billAvenueController');
+const { validate, viewbill, initiateRecharge, operatorLogo, getPlans, getPlanTypes } = require('../../controllers/billAvenueController');
 const router = express.Router();
 
 router.post('/validate', validate);

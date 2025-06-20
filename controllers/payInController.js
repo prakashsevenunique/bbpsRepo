@@ -254,7 +254,7 @@ exports.callbackPayIn = async (req, res) => {
       payin.remark = "Payment successful";
       await payin.save({ session });
 
-      user.mainWallet += payin.amount;
+      user.eWallet += payin.amount;
       await user.save({ session });
 
     } else {

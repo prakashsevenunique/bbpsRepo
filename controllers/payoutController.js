@@ -141,11 +141,11 @@ exports.generatePayOut = async (req, res, next) => {
       {
         _id: userId,
         $expr: {
-          $gte: [{ $subtract: ["$mainWallet", "$cappingMoney"] }, amount],
+          $gte: [{ $subtract: ["$eWallet", "$cappingMoney"] }, amount],
         },
       },
       {
-        $inc: { mainWallet: -amount },
+        $inc: { eWallet: -amount },
       },
       {
         session,
@@ -269,7 +269,7 @@ exports.callbackPayout = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    user.mainWallet += payout.amount;
+    user.eWallet += payout.amount;
     await user.save({ session });
 
     await session.commitTransaction();

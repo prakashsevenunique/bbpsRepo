@@ -9,7 +9,8 @@ const {
   getUserController,
   getUsersWithFilters,
   updateUserStatus,
-  updateUserDetails
+  updateUserDetails,
+  getDashboardSummary
 } = require('../controllers/authController.js');
 const authenticateToken = require('../middleware/verifyToken.js');
 const authorizeRoles = require('../middleware/verifyRole.js');
@@ -23,5 +24,6 @@ router.get('/profile',authenticateToken, getUserController);
 router.get('/users',authenticateToken,authorizeRoles("Admin","Distributor"), getUsersWithFilters);
 router.put('/user/:id/status',authenticateToken,authorizeRoles("Admin"), updateUserStatus);
 router.put('/user/:id',authenticateToken,authorizeRoles("Admin"), updateUserDetails);
+router.get('/dashboard',authenticateToken,authorizeRoles("Admin","Distributor","retaitrs"), getDashboardSummary);
 
 module.exports = router;

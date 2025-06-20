@@ -223,7 +223,6 @@ const getUsersWithFilters = async (req, res) => {
         'status',
         'distributorId',
         'isKycVerified',
-        'mainWallet',
         'eWallet',
         'cappingMoney',
         'createdAt',
@@ -300,7 +299,6 @@ const updateUserDetails = async (req, res) => {
     if (commissionPackage) user.commissionPackage = commissionPackage;
     if (isAccountActive !== undefined) user.isAccountActive = isAccountActive;
     if (cappingMoney !== undefined) user.cappingMoney = cappingMoney;
-    if (mainWallet !== undefined) user.mainWallet = mainWallet;
     if (eWallet !== undefined) user.eWallet = eWallet;
     if (meta) user.meta = meta;
 
@@ -314,6 +312,83 @@ const updateUserDetails = async (req, res) => {
   }
 };
 
+const Transaction = require('../models/transactionModel.js');
+
+
+
+const getDashboardSummary = async (req, res) => {
+  try {
+    const { id: userId, role } = req.user;
+    let userFilter = {};
+
+    if (role === "retailer") {
+      userFilter = { userId: mongoose.Types.ObjectId(userId) };
+
+    } else if (role === "distributor") {
+      // Get all retailers under distributor
+      const retailers = await User.find({ parentId: userId, role: 'retailer' }).select('_id');
+      const retailerIds = retailers.map(r => r._id);
+      userFilter = { userId: { $in: retailerIds } };
+
+    } else if (role === "admin") {
+      // Admin can see all
+      userFilter = {};
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [totalTxn, todayTxn, statusCount, totalAmt, topBillers] = await Promise.all([
+      Transaction.countDocuments(userFilter),
+
+      Transaction.countDocuments({
+        ...userFilter,
+        createdAt: { $gte: today }
+      }),
+
+      Transaction.aggregate([
+        { $match: userFilter },
+        { $group: { _id: "$status", count: { $sum: 1 } } }
+      ]),
+
+      Transaction.aggregate([
+        { $match: { ...userFilter, status: "success" } },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+      ]),
+
+      Transaction.aggregate([
+        { $match: userFilter },
+        { $group: { _id: "$biller", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 }
+      ])
+    ]);
+
+    // Wallet fetch
+    const wallet = await Wallet.findOne({ userId });
+    const success = statusCount.find(e => e._id === "success")?.count || 0;
+    const failed = statusCount.find(e => e._id === "failed")?.count || 0;
+    const total = success + failed;
+
+    const successRate = total ? ((success / total) * 100).toFixed(2) + '%' : '0%';
+    const failureRate = total ? ((failed / total) * 100).toFixed(2) + '%' : '0%';
+
+    res.json({
+      totalTransactions: totalTxn,
+      todayTransactions: todayTxn,
+      successRate,
+      failureRate,
+      totalAmount: totalAmt[0]?.total || 0,
+      walletBalance: wallet?.balance || 0,
+      topBillers
+    });
+
+  } catch (error) {
+    console.error("Dashboard Error:", error);
+    res.status(500).json({ error: true, message: "Internal Server Error" });
+  }
+};
+
 module.exports = {
   sendOtpController,
   verifyOTPController,
@@ -323,5 +398,6 @@ module.exports = {
   getUserController,
   getUsersWithFilters,
   updateUserStatus,
-  updateUserDetails
+  updateUserDetails,
+  getDashboardSummary
 };
