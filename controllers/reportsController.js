@@ -2,6 +2,7 @@ const BbpsHistory = require('../models/bbpsModel.js');
 const DmtReport = require('../models/dmtTransactionModel.js');
 const OnboardTransaction = require('../models/aepsModels/onboardingMerchants.js');
 const { Parser } = require('json2csv');
+const AEPSWithdrawal = require('../models/aepsModels/withdrawalEntry.js');
 
 exports.getBbpsReport = async (req, res) => {
   try {
@@ -227,13 +228,6 @@ exports.getAllOnboardTransactions = async (req, res, next) => {
     const userId = req.user.id;
 
     const filter = {};
-
-    if (role === 'Admin') {
-      if (queryUserId) filter.user_id = queryUserId;
-    } else {
-      filter.user_id = userId;
-    }
-
     if (merchantcode) {
       filter.merchantcode = { $regex: merchantcode, $options: 'i' };
     }
@@ -270,38 +264,87 @@ exports.getAllOnboardTransactions = async (req, res, next) => {
   }
 };
 
-exports.saveRecharge = async (req, res) => {
-  const {
-    userId,
-    rechargeType,
-    operator,
-    customerNumber,
-    amount,
-    transactionId,
-    status,
-    responseCode,
-    responseMessage,
-    extraDetails,
-  } = req.body;
-
+exports.getMerchantByUserId = async (req, res) => {
   try {
-    const history = new BbpsHistory({
-      userId,
-      rechargeType,
-      operator,
-      customerNumber,
-      amount,
-      transactionId,
-      status,
-      responseCode,
-      responseMessage,
-      extraDetails,
-    });
+    const { userId } = req.params;
+    const merchantData = await OnboardTransaction.findOne({ merchantcode: 101 });
 
-    await history.save();
-    res.json({ success: true, message: 'Recharge history saved', data: history });
-  } catch (err) {
-    console.error('Error saving BBPS history:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    if (!merchantData || merchantData.length === 0) {
+      return res.status(404).json({ message: 'No merchant records found for this user.' });
+    }
+    return res.status(200).json(merchantData);
+  } catch (error) {
+    console.error('Error fetching merchant details:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.aepsTransactions = async (req, res, next) => {
+  try {
+    const {
+      mobilenumber,
+      adhaarnumber,
+      userId,
+      submerchantid,
+      bankiin,
+      ackno,
+      clientrefno,
+      status,
+      startDate,
+      endDate,
+    } = req.query;
+
+    const matchStage = {};
+
+    if (mobilenumber) matchStage.mobilenumber = mobilenumber;
+    if (adhaarnumber) matchStage.adhaarnumber = adhaarnumber;
+    if (userId) matchStage.userId = userId;
+    if (submerchantid) matchStage.submerchantid = submerchantid;
+    if (bankiin) matchStage.bankiin = bankiin;
+    if (ackno) matchStage.ackno = Number(ackno);
+    if (clientrefno) matchStage.clientrefno = clientrefno;
+    if (status !== undefined) matchStage.status = status === 'true';
+
+    if (startDate && endDate) {
+      matchStage.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    }
+
+    const transactions = await AEPSWithdrawal.aggregate([
+      { $match: matchStage },
+      { $sort: { createdAt: -1 } },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      count: transactions.length,
+      data: transactions,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.getTransactionById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const transaction = await AEPSWithdrawal.findById(id);
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: transaction,
+    });
+  } catch (error) {
+    return next(error);
   }
 };

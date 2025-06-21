@@ -49,6 +49,8 @@ const getSourceCities = async (req, res, next) => {
     );
     handleResponse(res, response.data, "Source cities fetched successfully");
   } catch (error) {
+
+    console.log("Error in getSourceCities:", error);
     next(error);
   }
 };

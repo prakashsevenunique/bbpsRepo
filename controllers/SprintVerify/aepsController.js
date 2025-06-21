@@ -3,6 +3,13 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const generatePaysprintJWT = require('../../services/Dmt&Aeps/TokenGenrate');
 const OnboardTransaction = require('../../models/aepsModels/onboardingMerchants.js');
+const userModel = require('../../models/userModel.js');
+const { default: mongoose } = require('mongoose');
+const AEPSWithdrawal = require('../../models/aepsModels/withdrawalEntry.js');
+const getDmtOrAepsMeta = require('../../utils/aeps&DmtCommmsion.js');
+const { calculateCommissionFromSlabs } = require('../../utils/chargeCaluate.js');
+const Transaction = require('../../models/transactionModel.js');
+const payOutModel = require('../../models/payOutModel.js');
 
 const headers = {
     'Token': generatePaysprintJWT(),
@@ -16,9 +23,6 @@ const AES_KEY = '557aefe5593170ad'; // Must be 16 characters
 const AES_IV = '7c4851aad3e91b9c';  // Must be 16 characters
 
 const WADH = "18f4CEiXeXcfGXvgWA/blxD+w2pw7hfQPY45JMytkPw=";
-
-// https://58e8-2401-4900-889a-511c-7849-49f2-bf5e-665e.ngrok-free.app/api/v1/aeps/onboard/callback?data=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJyZWZubyI6IjE3NDk3MjkzNjM1OTgiLCJ0eG5pZCI6IiIsInN0YXR1cyI6IjAiLCJzdGF0dXNiYW5rMiI6IjAiLCJtb2JpbGUiOiI4MzAyODQ1OTc2IiwicGFydG5lcmlkIjoiUFMwMDE3OTIiLCJtZXJjaGFudGNvZGUiOiIxMDEiLCJiYW5rIjp7IkJhbmsxIjowLCJCYW5rMiI6MH19.43H-EtcfhddKtBwYPXvTmETJg6NkrTyMVAMbYMPiSf8
-
 
 const decryptJWT = (token, secretKey) => {
     try {
@@ -51,7 +55,7 @@ function encrypt(data) {
 
 
 exports.generateOnboardURL = async (req, res) => {
-    const { merchantcode, mobile, email, firm, callback } = req.body;
+    const { id, merchantcode, mobile, email, firm, callback } = req.body;
     const payload = {
         merchantcode,
         mobile,
@@ -61,12 +65,24 @@ exports.generateOnboardURL = async (req, res) => {
         callback
     };
     try {
+
+        const merchantData = await OnboardTransaction.findOne({ user_id: id });
+        if (merchantData) {
+            return res.status(400).json({ message: 'Merchant already in onboarded row.' });
+        }
+
+        let onboardingUser = userModel.findOne({ _id: id, status: true, mobileNumber: mobile });
+
+        if (!onboardingUser) {
+            return res.status(404).json({ message: 'User not found or inactive.' });
+        }
+
         const response = await axios.post(BASE_URL, payload, {
             headers
         });
         if (response.data.status) {
             await OnboardTransaction.create({
-                user_id: req.user.id,
+                user_id: new mongoose.Types.ObjectId(id),
                 merchantcode,
                 mobile,
                 email,
@@ -228,12 +244,12 @@ exports.checkOnboardStatus = async (req, res, next) => {
 
 exports.registerMerchant = async (req, res, next) => {
     const ipaddre =
-        req.headers['x-forwarded-for']?.split(',')[0] ||  // If behind proxy
-        req.socket?.remoteAddress ||                      // Direct connection
+        req.headers['x-forwarded-for']?.split(',')[0] ||
+        req.socket?.remoteAddress ||
         req.connection?.remoteAddress;
     try {
         const {
-            accessmodetype,
+            accessmodetype = "SITE",
             adhaarnumber,
             mobilenumber,
             latitude,
@@ -243,7 +259,7 @@ exports.registerMerchant = async (req, res, next) => {
             is_iris,
             timestamp = new Date(),
             data = `<PidData>....</PidData>`,
-            ipaddress = "9.9.9.9"
+            ipaddress = ipaddre
         } = req.body;
 
         if (!referenceno || !submerchantid || !timestamp) {
@@ -274,14 +290,25 @@ exports.registerMerchant = async (req, res, next) => {
             { body: encryptedBody },
             { headers }
         );
+
+        if (response.data.response_code == 1) {
+            await OnboardTransaction.findOneAndUpdate(
+                { merchantcode: submerchantid },
+                { activationStatus: "Activated" },
+                { new: true, upsert: true }
+            );
+        }
         return res.status(response.status).json(response.data);
     } catch (error) {
         return next(error)
     }
 };
 
-
 exports.authenticateMerchant = async (req, res) => {
+    const ipaddre =
+        req.headers['x-forwarded-for']?.split(',')[0] ||  // If behind proxy
+        req.socket?.remoteAddress ||                      // Direct connection
+        req.connection?.remoteAddress;
     try {
         const {
             accessmodetype,
@@ -294,7 +321,7 @@ exports.authenticateMerchant = async (req, res) => {
             is_iris,
             timestamp = Date.now(),
             data = `<PidData>....</PidData>`,
-            ipaddress = "9.9.9.9"
+            ipaddress = ipaddre
         } = req.body;
 
         if (!referenceno || !submerchantid || !timestamp) {
@@ -346,7 +373,7 @@ exports.balanceEnquiry = async (req, res, next) => {
             mobilenumber,
             adhaarnumber,
             nationalbankidentification,
-            ipaddress = "192.168.1.67",
+            ipaddress = "192.168.1.91",
             referenceno,
             accessmodetype = "SITE",
             requestremarks = "",
@@ -383,6 +410,14 @@ exports.balanceEnquiry = async (req, res, next) => {
 };
 
 exports.withdrawWithAuth = async (req, res, next) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    const ipaddre =
+        req.headers["x-forwarded-for"]?.split(",")[0] ||
+        req.socket?.remoteAddress ||
+        req.connection?.remoteAddress;
+
     try {
         const {
             latitude,
@@ -390,12 +425,12 @@ exports.withdrawWithAuth = async (req, res, next) => {
             mobilenumber,
             adhaarnumber,
             nationalbankidentification,
-            ipaddress = req.ip,
+            ipaddress = ipaddre,
             referenceno,
             accessmodetype = "WEB",
             requestremarks = "",
             data,
-            pipe = "bank2",
+            pipe = "bank1",
             timestamp = new Date().toISOString().slice(0, 19).replace("T", " "),
             transactiontype = "CW",
             submerchantid = "1",
@@ -406,6 +441,30 @@ exports.withdrawWithAuth = async (req, res, next) => {
         if (!latitude || !longitude || !mobilenumber || !adhaarnumber || !data || !amount || !nationalbankidentification) {
             return res.status(400).json({ error: true, message: "Missing required fields" });
         }
+
+        const user = await userModel.findById(req.user.id).session(session);
+        if (!user) {
+            await session.abortTransaction();
+            return res.status(404).json({ error: true, message: "User not found" });
+        }
+
+        const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "AEPS");
+        if (!commissionPackage?.isActive) {
+            await session.abortTransaction();
+            return res.status(400).json({ success: false, message: "AEPS package not active for this user" });
+        }
+
+        const commission = calculateCommissionFromSlabs(amount, commissionPackage?.slabs || []);
+        const totalDebit = commission.totalCommission;
+
+        if (user.eWallet < totalDebit) {
+            await session.abortTransaction();
+            return res.status(400).json({ error: true, message: "Insufficient wallet balance" });
+        }
+
+        user.eWallet -= totalDebit;
+        await user.save({ session });
+
         const plainBody = {
             latitude,
             longitude,
@@ -424,22 +483,96 @@ exports.withdrawWithAuth = async (req, res, next) => {
             amount,
             is_iris
         };
+
         const encryptedBody = encrypt(plainBody);
+
         const response = await axios.post(
             "https://sit.paysprint.in/service-api/api/v1/service/aeps/authcashwithdraw/index",
             { body: encryptedBody },
-            {
-                headers,
-                timeout: 180000
-            }
+            { headers, timeout: 180000 }
         );
-        return res.json(response.data);
+
+        const resData = response?.data;
+
+        if (resData?.status) {
+            await AEPSWithdrawal.create([{
+                status: resData.status,
+                ackno: resData.ackno,
+                amount: resData.amount,
+                balanceamount: resData.balanceamount,
+                bankrrn: resData.bankrrn?.toString(),
+                bankiin: resData.bankiin,
+                mobilenumber,
+                clientrefno: resData.clientrefno || referenceno,
+                adhaarnumber,
+                submerchantid,
+                userId: req.user.id,
+                charges: totalDebit
+            }], { session });
+
+            await Transaction.create([{
+                user_id: req.user.id,
+                transaction_type: "debit",
+                amount: Number(totalDebit),
+                balance_after: user.eWallet,
+                payment_mode: "wallet",
+                transaction_reference_id: referenceno,
+                description: "AEPS Withdrawal Charges",
+                status: "Success"
+            }], { session });
+
+            await payOutModel.create([{
+                userId: req.user.id,
+                amount: 0,
+                reference: referenceno,
+                trans_mode: "WALLET",
+                name: user.name,
+                mobile: user.mobileNumber,
+                email: user.email,
+                status: "Success",
+                charges: commission.totalCommission,
+                remark: `AEPS Cash Withdrawal`
+            }], { session });
+
+        } else {
+            user.eWallet += totalDebit;
+            await user.save({ session });
+            await Transaction.create([{
+                user_id: req.user.id,
+                transaction_type: "debit",
+                amount: totalDebit,
+                balance_after: user.eWallet,
+                payment_mode: "wallet",
+                transaction_reference_id: referenceno,
+                description: "Refund: AEPS Withdrawal Failed Charges",
+                status: "Failed"
+            }], { session });
+
+            await session.commitTransaction();
+            session.endSession();
+
+            return res.status(400).json({
+                success: false,
+                message: resData?.message || "AEPS request failed. Wallet refunded.",
+                refunded: true,
+                wallet: user.eWallet
+            });
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(200).json(resData);
+
     } catch (err) {
-        return res.status(500).json({ error: true, message: "Internal Server Error", details: err.message });
+        await session.abortTransaction();
+        session.endSession();
+        console.error("Error in AEPS Withdrawal:", err);
+        return next(err);
     }
 };
 
-exports.getMiniStatement = async (req, res) => {
+exports.getMiniStatement = async (req, res, next) => {
     try {
         const {
             latitude,
@@ -492,22 +625,18 @@ exports.getMiniStatement = async (req, res) => {
         );
         return res.json(response.data);
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error",
-            error: error.message
-        });
+        return next(error);
     }
 };
 
 exports.getAepsBankList = async (req, res, next) => {
     try {
         const response = await axios.post(
-            "https://sit.paysprint.in/service-api/api/v1/service/aeps//banklist/index",
+            "https://sit.paysprint.in/service-api/api/v1/service/aeps/banklist/index",
             {},
             { headers }
         );
-        return res.json(response.data);
+        return res.json(response?.data?.banklist || []);
     } catch (error) {
         return next(error)
     }

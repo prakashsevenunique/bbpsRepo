@@ -37,5 +37,6 @@ router.get("/aeps/banklist", authenticateToken, getAepsBankList)
 
 //reports
 router.get("/aeps/merchants", authenticateToken,reportController.getAllOnboardTransactions)
+router.get('/aeps/merchant/:userId', reportController.getMerchantByUserId);
 
 module.exports = router;

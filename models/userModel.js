@@ -104,11 +104,6 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    commissionPackage: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'CommissionPackage',
-      default: null,
-    },
     cappingMoney: {
       type: Number,
       default: 0,

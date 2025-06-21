@@ -198,8 +198,6 @@ exports.BeneficiaryById = async (req, res, next) => {
 };
 
 exports.PennyDrop = async (req, res, next) => {
-
-
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -218,7 +216,7 @@ exports.PennyDrop = async (req, res, next) => {
         } = req.body;
 
         const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
-        
+
         const amount = commissionPackage?.dmtPennyDrop || 0;
         const userId = req.user.id;
 
@@ -396,13 +394,6 @@ exports.sendTransactionOtp = async (req, res, next) => {
 };
 
 exports.performTransaction = async (req, res, next) => {
-
-    const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
-
-    if (!commissionPackage?.isActive) {
-        return res.status(400).json({ success: false, message: "DMT package not active for this user" });
-    }
-
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -422,6 +413,12 @@ exports.performTransaction = async (req, res, next) => {
             lat = "28.786543",
             long = "78.345678"
         } = req.body;
+
+        const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
+
+        if (!commissionPackage?.isActive) {
+            return res.status(400).json({ success: false, message: "DMT package not active for this user" });
+        }
 
         let userId = req.user.id;
 
@@ -450,8 +447,6 @@ exports.performTransaction = async (req, res, next) => {
         }
 
         user.eWallet -= (Number(amount) + commission.totalCommission);
-
-        console.log(Number(amount) + commission.totalCommission)
 
         await user.save({ session });
 

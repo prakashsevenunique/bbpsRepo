@@ -417,7 +417,7 @@ exports.payBill = async (req, res, next) => {
         mobile: user.mobileNumber,
         email: user.email,
         status: "Success",
-        charges: 0,
+        charges: charges.totalDeducted,
         remark: `Bill payment for ${canumber} (${operator})`
       });
       await newPayOut.save({ session });

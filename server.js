@@ -52,7 +52,7 @@ app.use("/api/v1/commission", require("./routes/commisionRoutes.js"));
 app.use("/api/recharge", rechargeRoute);
 app.use("/api/biller", billerRoutes);;
 
-app.get("/", (req, res) => res.json("welcome"));
+app.get("/", (req, res) => res.json({ ip: req.ip , message: "Welcome to the API" }));
 
 mongoose
   .connect(process.env.MONGO_URI)
