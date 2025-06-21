@@ -4,6 +4,8 @@ const { sendOtp } = require("../services/smsService");
 const { generateJwtToken } = require("../services/jwtService");
 const { parse } = require('json2csv');
 const userMetaModel = require("../models/userMetaModel.js");
+const PayIn = require("../models/payInModel.js");
+const PayOut = require("../models/payOutModel.js");
 
 const sendOtpController = async (req, res) => {
   try {
@@ -319,43 +321,47 @@ const Transaction = require('../models/transactionModel.js');
 const getDashboardSummary = async (req, res) => {
   try {
     const { id: userId, role } = req.user;
-    let userFilter = {};
 
+    let userFilter = {};
+    let payUserIds = [];
+    let eWalletUserIds = [];
+
+    // Determine users under scope
     if (role === "retailer") {
       userFilter = { userId: mongoose.Types.ObjectId(userId) };
+      payUserIds = [userId];
+      eWalletUserIds = [userId];
 
     } else if (role === "distributor") {
-      // Get all retailers under distributor
-      const retailers = await User.find({ parentId: userId, role: 'retailer' }).select('_id');
-      const retailerIds = retailers.map(r => r._id);
-      userFilter = { userId: { $in: retailerIds } };
+      const retailers = await User.find({ distributorId: userId, role: 'Retailer' }).select('_id');
+      const retailerIds = retailers.map(r => r._id.toString());
+      payUserIds = [userId, ...retailerIds];
+      eWalletUserIds = [userId, ...retailerIds];
+      userFilter = { userId: { $in: retailerIds.map(id => mongoose.Types.ObjectId(id)) } };
 
     } else if (role === "admin") {
-      // Admin can see all
       userFilter = {};
+      const allUsers = await User.find().select('_id');
+      const allUserIds = allUsers.map(u => u._id.toString());
+      payUserIds = allUserIds;
+      eWalletUserIds = allUserIds;
     }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Transaction Summary
     const [totalTxn, todayTxn, statusCount, totalAmt, topBillers] = await Promise.all([
       Transaction.countDocuments(userFilter),
-
-      Transaction.countDocuments({
-        ...userFilter,
-        createdAt: { $gte: today }
-      }),
-
+      Transaction.countDocuments({ ...userFilter, createdAt: { $gte: today } }),
       Transaction.aggregate([
         { $match: userFilter },
         { $group: { _id: "$status", count: { $sum: 1 } } }
       ]),
-
       Transaction.aggregate([
         { $match: { ...userFilter, status: "success" } },
         { $group: { _id: null, total: { $sum: "$amount" } } }
       ]),
-
       Transaction.aggregate([
         { $match: userFilter },
         { $group: { _id: "$biller", count: { $sum: 1 } } },
@@ -364,30 +370,65 @@ const getDashboardSummary = async (req, res) => {
       ])
     ]);
 
-    // Wallet fetch
-    const wallet = await Wallet.findOne({ userId });
+    // Wallet total
+    let walletBalance = 0;
+    if (eWalletUserIds.length > 0) {
+      const wallets = await User.find({ _id: { $in: eWalletUserIds.map(id => mongoose.Types.ObjectId(id)) } }).select("eWallet");
+      walletBalance = wallets.reduce((sum, user) => sum + (user.eWallet || 0), 0);
+    }
+
+    // Total PayIn
+    const payIn = await PayIn.aggregate([
+      { $match: { userId: { $in: payUserIds.map(id => mongoose.Types.ObjectId(id)) }, status: "Success" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+
+    // Total PayOut
+    const payOut = await PayOut.aggregate([
+      { $match: { userId: { $in: payUserIds.map(id => mongoose.Types.ObjectId(id)) }, status: "Success" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+
+    // Success/failure rate
     const success = statusCount.find(e => e._id === "success")?.count || 0;
     const failed = statusCount.find(e => e._id === "failed")?.count || 0;
     const total = success + failed;
-
     const successRate = total ? ((success / total) * 100).toFixed(2) + '%' : '0%';
     const failureRate = total ? ((failed / total) * 100).toFixed(2) + '%' : '0%';
 
-    res.json({
+    // Final response
+    const response = {
       totalTransactions: totalTxn,
       todayTransactions: todayTxn,
       successRate,
       failureRate,
       totalAmount: totalAmt[0]?.total || 0,
-      walletBalance: wallet?.balance || 0,
-      topBillers
-    });
+      walletBalance: parseFloat(walletBalance.toFixed(2)),
+      topBillers,
+      totalPayIn: payIn[0]?.total || 0,
+      totalPayOut: payOut[0]?.total || 0,
+    };
 
-  } catch (error) {
-    console.error("Dashboard Error:", error);
-    res.status(500).json({ error: true, message: "Internal Server Error" });
+    // Extra for Admin
+    if (role === "admin") {
+      response.totalRetailers = await User.countDocuments({ role: "Retailer" });
+      response.totalDistributors = await User.countDocuments({ role: "Distributor" });
+    }
+
+    // Extra for Distributor
+    if (role === "distributor") {
+      response.totalRetailers = await User.countDocuments({ distributorId: userId, role: 'Retailer' });
+    }
+
+    return res.json(response);
+
+  } catch (err) {
+    console.error("Dashboard Error:", err);
+    return res.status(500).json({ error: true, message: "Internal Server Error" });
   }
 };
+
+
 
 module.exports = {
   sendOtpController,
