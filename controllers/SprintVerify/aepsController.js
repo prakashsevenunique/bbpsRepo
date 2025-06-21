@@ -10,6 +10,8 @@ const getDmtOrAepsMeta = require('../../utils/aeps&DmtCommmsion.js');
 const { calculateCommissionFromSlabs } = require('../../utils/chargeCaluate.js');
 const Transaction = require('../../models/transactionModel.js');
 const payOutModel = require('../../models/payOutModel.js');
+const logger = require('../../utils/logger.js');
+
 
 const headers = {
     'Token': generatePaysprintJWT(),
@@ -76,7 +78,7 @@ exports.generateOnboardURL = async (req, res) => {
         if (!onboardingUser) {
             return res.status(404).json({ message: 'User not found or inactive.' });
         }
-
+        logger.info(`Received request`, { payload: payload, BASE_URL: BASE_URL, headers: headers })
         const response = await axios.post(BASE_URL, payload, {
             headers
         });
@@ -89,6 +91,7 @@ exports.generateOnboardURL = async (req, res) => {
                 firm,
                 callback
             });
+            logger.info(`Received response`, { response: response.data })
 
             return res.json({
                 redirectUrl: response.data.redirecturl,
