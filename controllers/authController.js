@@ -285,7 +285,7 @@ const updateUserDetails = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    const { role, status, isAccountActive, commissionPackage, cappingMoney, mainWallet, eWallet, meta } = req.body;
+    const { role, status, isAccountActive, commissionPackage, cappingMoney, eWallet, meta } = req.body;
 
     if (!userId) {
       return res.status(400).json({ message: "User ID is required" });
@@ -315,8 +315,6 @@ const updateUserDetails = async (req, res) => {
 };
 
 const Transaction = require('../models/transactionModel.js');
-
-
 
 const getDashboardSummary = async (req, res) => {
   try {
@@ -370,33 +368,28 @@ const getDashboardSummary = async (req, res) => {
       ])
     ]);
 
-    // Wallet total
     let walletBalance = 0;
     if (eWalletUserIds.length > 0) {
       const wallets = await User.find({ _id: { $in: eWalletUserIds.map(id => mongoose.Types.ObjectId(id)) } }).select("eWallet");
       walletBalance = wallets.reduce((sum, user) => sum + (user.eWallet || 0), 0);
     }
 
-    // Total PayIn
     const payIn = await PayIn.aggregate([
       { $match: { userId: { $in: payUserIds.map(id => mongoose.Types.ObjectId(id)) }, status: "Success" } },
       { $group: { _id: null, total: { $sum: "$amount" } } }
     ]);
 
-    // Total PayOut
-    const payOut = await PayOut.aggregate([
+     const payOut = await PayOut.aggregate([
       { $match: { userId: { $in: payUserIds.map(id => mongoose.Types.ObjectId(id)) }, status: "Success" } },
       { $group: { _id: null, total: { $sum: "$amount" } } }
     ]);
 
-    // Success/failure rate
     const success = statusCount.find(e => e._id === "success")?.count || 0;
     const failed = statusCount.find(e => e._id === "failed")?.count || 0;
     const total = success + failed;
     const successRate = total ? ((success / total) * 100).toFixed(2) + '%' : '0%';
     const failureRate = total ? ((failed / total) * 100).toFixed(2) + '%' : '0%';
 
-    // Final response
     const response = {
       totalTransactions: totalTxn,
       todayTransactions: todayTxn,
@@ -409,26 +402,20 @@ const getDashboardSummary = async (req, res) => {
       totalPayOut: payOut[0]?.total || 0,
     };
 
-    // Extra for Admin
     if (role === "admin") {
       response.totalRetailers = await User.countDocuments({ role: "Retailer" });
       response.totalDistributors = await User.countDocuments({ role: "Distributor" });
     }
 
-    // Extra for Distributor
     if (role === "distributor") {
       response.totalRetailers = await User.countDocuments({ distributorId: userId, role: 'Retailer' });
     }
-
     return res.json(response);
-
   } catch (err) {
     console.error("Dashboard Error:", err);
     return res.status(500).json({ error: true, message: "Internal Server Error" });
   }
 };
-
-
 
 module.exports = {
   sendOtpController,

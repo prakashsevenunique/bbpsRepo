@@ -22,8 +22,10 @@ exports.getBbpsReport = async (req, res) => {
 
     if (rechargeType) matchStage.rechargeType = rechargeType;
     if (status) matchStage.status = status;
-    if (req.user.role === 'Admin' && userId) {
-      matchStage.userId = mongoose.Types.ObjectId(userId);
+    if (req.user.role === 'Admin') {
+      if (userId){
+        matchStage.userId = mongoose.Types.ObjectId(userId);
+      }
     } else if (req.user.role === "Distributor") {
       matchStage.distributorId = req.user.id;
     } else {

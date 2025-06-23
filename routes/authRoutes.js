@@ -24,6 +24,6 @@ router.get('/profile',authenticateToken, getUserController);
 router.get('/users',authenticateToken,authorizeRoles("Admin","Distributor"), getUsersWithFilters);
 router.put('/user/:id/status',authenticateToken,authorizeRoles("Admin"), updateUserStatus);
 router.put('/user/:id',authenticateToken,authorizeRoles("Admin"), updateUserDetails);
-router.get('/dashboard',authenticateToken,authorizeRoles("Admin","Distributor","retaitrs"), getDashboardSummary);
+router.get('/dashboard',authenticateToken,authorizeRoles("Admin","Distributor","Retailer"), getDashboardSummary);
 
 module.exports = router;

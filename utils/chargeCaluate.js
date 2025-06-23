@@ -57,8 +57,6 @@ const getApplicableServiceCharge = async (userId, serviceName) => {
   if (user.isSpecial) {
     const userMeta = await UserMeta.findOne({ userId });
 
-    console.log(userMeta);
-
     if (!userMeta) {
       throw new Error("UserMeta not found");
     }

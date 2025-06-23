@@ -9,7 +9,7 @@ const Transaction = require("../../models/transactionModel.js");
 const userModel = require("../../models/userModel.js");
 const mongoose = require('mongoose');
 const getDmtOrAepsMeta = require('../../utils/aeps&DmtCommmsion.js');
-const { calculateCommissionFromSlabs } = require('../../utils/chargeCaluate.js');
+const { calculateCommissionFromSlabs, getApplicableServiceCharge } = require('../../utils/chargeCaluate.js');
 
 const headers = {
     'Token': generatePaysprintJWT(),
@@ -413,6 +413,8 @@ exports.performTransaction = async (req, res, next) => {
             lat = "28.786543",
             long = "78.345678"
         } = req.body;
+        
+        await getApplicableServiceCharge(req.user.id, "DMT");
 
         const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
 

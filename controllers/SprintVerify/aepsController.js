@@ -7,10 +7,12 @@ const userModel = require('../../models/userModel.js');
 const { default: mongoose } = require('mongoose');
 const AEPSWithdrawal = require('../../models/aepsModels/withdrawalEntry.js');
 const getDmtOrAepsMeta = require('../../utils/aeps&DmtCommmsion.js');
-const { calculateCommissionFromSlabs } = require('../../utils/chargeCaluate.js');
+const { calculateCommissionFromSlabs, getApplicableServiceCharge } = require('../../utils/chargeCaluate.js');
 const Transaction = require('../../models/transactionModel.js');
 const payOutModel = require('../../models/payOutModel.js');
 const logger = require('../../utils/logger.js');
+const { distributeCommission } = require('../../utils/distributerCommission.js');
+const { promises } = require('dns');
 
 
 const headers = {
@@ -423,8 +425,8 @@ exports.withdrawWithAuth = async (req, res, next) => {
 
     try {
         const {
-            latitude,
-            longitude,
+            latitude = 1.25454454,
+            longitude = 1.75454454,
             mobilenumber,
             adhaarnumber,
             nationalbankidentification,
@@ -441,7 +443,10 @@ exports.withdrawWithAuth = async (req, res, next) => {
             is_iris = "No"
         } = req.body;
 
-        if (!latitude || !longitude || !mobilenumber || !adhaarnumber || !data || !amount || !nationalbankidentification) {
+        await getApplicableServiceCharge(req.user.id, "AEPS");
+
+
+        if (!mobilenumber || !adhaarnumber || !data || !amount || !nationalbankidentification) {
             return res.status(400).json({ error: true, message: "Missing required fields" });
         }
 
@@ -450,6 +455,18 @@ exports.withdrawWithAuth = async (req, res, next) => {
             await session.abortTransaction();
             return res.status(404).json({ error: true, message: "User not found" });
         }
+
+        // {
+        //   amount: '51',
+        //   slabRange: '[1 - 2999]',
+        //   commissionType: 'percentage',
+        //   retailer: 0.08,
+        //   distributor: 0.08,
+        //   admin: 0.08,
+        //   gst: 0.014,
+        //   tds: 0.004,
+        //   totalCommission: 0.23
+        // }
 
         const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "AEPS");
         if (!commissionPackage?.isActive) {
@@ -460,6 +477,8 @@ exports.withdrawWithAuth = async (req, res, next) => {
         const commission = calculateCommissionFromSlabs(amount, commissionPackage?.slabs || []);
         const totalDebit = commission.totalCommission;
 
+        console.log(commission)
+
         if (user.eWallet < totalDebit) {
             await session.abortTransaction();
             return res.status(400).json({ error: true, message: "Insufficient wallet balance" });
@@ -469,8 +488,8 @@ exports.withdrawWithAuth = async (req, res, next) => {
         await user.save({ session });
 
         const plainBody = {
-            latitude,
-            longitude,
+            latitude: latitude || 1.25454454,
+            longitude: longitude || 1.75454454,
             mobilenumber,
             referenceno,
             ipaddress,
@@ -494,48 +513,60 @@ exports.withdrawWithAuth = async (req, res, next) => {
             { body: encryptedBody },
             { headers, timeout: 180000 }
         );
-
         const resData = response?.data;
-
         if (resData?.status) {
-            await AEPSWithdrawal.create([{
-                status: resData.status,
-                ackno: resData.ackno,
-                amount: resData.amount,
-                balanceamount: resData.balanceamount,
-                bankrrn: resData.bankrrn?.toString(),
-                bankiin: resData.bankiin,
-                mobilenumber,
-                clientrefno: resData.clientrefno || referenceno,
-                adhaarnumber,
-                submerchantid,
-                userId: req.user.id,
-                charges: totalDebit
-            }], { session });
+            if (resData?.status) {
+                await Promise.all([
+                    AEPSWithdrawal.create([{
+                        status: resData.status,
+                        ackno: resData.ackno,
+                        amount: resData.amount,
+                        balanceamount: resData.balanceamount,
+                        bankrrn: resData.bankrrn?.toString(),
+                        bankiin: resData.bankiin,
+                        mobilenumber,
+                        clientrefno: resData.clientrefno || referenceno,
+                        adhaarnumber,
+                        submerchantid,
+                        userId: req.user.id,
+                        charges: totalDebit
+                    }], { session }),
 
-            await Transaction.create([{
-                user_id: req.user.id,
-                transaction_type: "debit",
-                amount: Number(totalDebit),
-                balance_after: user.eWallet,
-                payment_mode: "wallet",
-                transaction_reference_id: referenceno,
-                description: "AEPS Withdrawal Charges",
-                status: "Success"
-            }], { session });
+                    Transaction.create([{
+                        user_id: req.user.id,
+                        transaction_type: "debit",
+                        amount: Number(totalDebit),
+                        balance_after: user.eWallet,
+                        payment_mode: "wallet",
+                        transaction_reference_id: referenceno,
+                        description: "AEPS Withdrawal Charges",
+                        status: "Success"
+                    }], { session }),
 
-            await payOutModel.create([{
-                userId: req.user.id,
-                amount: 0,
-                reference: referenceno,
-                trans_mode: "WALLET",
-                name: user.name,
-                mobile: user.mobileNumber,
-                email: user.email,
-                status: "Success",
-                charges: commission.totalCommission,
-                remark: `AEPS Cash Withdrawal`
-            }], { session });
+                    payOutModel.create([{
+                        userId: req.user.id,
+                        amount: 0,
+                        reference: referenceno,
+                        trans_mode: "WALLET",
+                        name: user.name,
+                        mobile: user.mobileNumber,
+                        email: user.email,
+                        status: "Success",
+                        charges: commission.totalCommission,
+                        remark: `AEPS Cash Withdrawal`
+                    }], { session }),
+
+                    distributeCommission({
+                        distributer: user.distributorId,
+                        service: "AEPS",
+                        amount,
+                        commission,
+                        reference: referenceno,
+                        description: "Commission for AEPS Cash Withdrawal"
+                    })
+                ]);
+            }
+
 
         } else {
             user.eWallet += totalDebit;
