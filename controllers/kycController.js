@@ -5,7 +5,7 @@ require("dotenv").config();
 
 
 function generateToken() {
-  return jwt.sign({}, "5834792b3edd4127848907565a6dc94d08bfd9cb7a8b48e5c2e1de1790995f64", {
+  return jwt.sign({}, "18fc02b675bfa38fbb3350b18e0fc45cf3740bd3be6104e4d310188943d09535", {
     algorithm: "HS256",
   });
 };
@@ -19,7 +19,7 @@ const aadhaarVerify = async (req, res, next) => {
   try {
     const generateOtpResponse = await axios.post(`https://api.7uniqueverfiy.com/api/verify/adhar/send/otp`, { id_number: id_number, }, {
       headers: {
-        "client-id": 'Seven013',
+        "client-id": 'Seven012',
         "authorization": `Bearer ${generateToken()}`,
         "x-env": "production",
         "Content-Type": "application/json",
@@ -41,12 +41,12 @@ const submitAadharOTP = async (req, res) => {
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   }
-  const generateOtpResponse = await axios.post(`http://localhost:5050/api/verify/aadhaar_verifyotp
+  const generateOtpResponse = await axios.post(`https://api.7uniqueverfiy.com/api/verify/adhar/verify/otp
 `, {
     method: "POST",
     headers: {
 
-      "client-id": 'Seven013',
+      "client-id": 'Seven012',
       "authorization": `Bearer ${generateToken()}`,
       "x-env": "production",
       // ❌ DO NOT manually set Content-Type for FormData
@@ -84,21 +84,21 @@ const verifyBank = async (req, res) => {
         .status(400)
         .json({ success: false, message: "IFSC number or ID is missing" });
     }
-    const url = "http://localhost:5050/api/verify/bankVerify/v2";
+    const url = "https://api.7uniqueverfiy.com/api/verify/bankVerify/v2";
     const response = await axios.post(
       url,
       {
-        id_number,
-        ifsc,
-        ifsc_details: true,
+       account_number: id_number,
+        ifsc_code:ifsc,
+        
       },
       {
         headers: {
 
-          "client-id": 'Seven013',
+          "client-id": 'Seven012',
           "authorization": `Bearer ${generateToken()}`,
           "x-env": "production",
-          // ❌ DO NOT manually set Content-Type for FormData
+        
         },
       }
     );
@@ -119,42 +119,51 @@ const verifyBank = async (req, res) => {
 
 const verifyPAN = async (req, res) => {
   const { id_number } = req.body;
-  let user = await User.findById(req.user.id);
 
-  if (!user) {
-    return res.status(404).json({ message: "User not found" });
-  }
+  console.log("🔍 PAN Verification Requested for:", id_number);
+
   try {
-    if (!id_number) {
-      return res
-        .status(400)
-        .json({ success: false, message: "IFSC number missing" });
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      console.log("❌ User not found:", req.user.id);
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const url = "http://localhost:5050/api/verify/pan_verify";
+    if (!id_number) {
+      console.log("⚠️ PAN number is missing in request body");
+      return res
+        .status(400)
+        .json({ success: false, message: "PAN number missing" });
+    }
 
-    const response = await axios.post(
-      url,
-      {
-        id_number,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.TOKEN}`,
-        },
-      }
-    );
+    const url = "https://api.7uniqueverfiy.com/api/verify/pan_verify";
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${generateToken()}`,
+      "Client-id": 'Seven012',
+      "x-env": "production"
+    };
+
+    console.log("🌐 Sending request to:", url);
+    console.log("📦 Request Headers:", headers);
+
+    const response = await axios.post(url, { pannumber: id_number }, { headers });
+
+    console.log("✅ API Response:", response.data);
+
     const nameFromPAN = response.data.data;
     user.panDetails = nameFromPAN;
     await user.save();
+
     return res
       .status(200)
       .json({ success: true, name: nameFromPAN, data: response.data });
+
   } catch (error) {
+    console.error("❌ PAN Verification Error:", error.response?.data || error.message);
     return res
       .status(500)
-      .json({ success: false, message: "Error verifying pan details" });
+      .json({ success: false, message: "Error verifying PAN details" });
   }
 };
 

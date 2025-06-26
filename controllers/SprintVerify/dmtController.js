@@ -9,7 +9,8 @@ const Transaction = require("../../models/transactionModel.js");
 const userModel = require("../../models/userModel.js");
 const mongoose = require('mongoose');
 const getDmtOrAepsMeta = require('../../utils/aeps&DmtCommmsion.js');
-const { calculateCommissionFromSlabs, getApplicableServiceCharge } = require('../../utils/chargeCaluate.js');
+const { calculateCommissionFromSlabs, getApplicableServiceCharge, logApiCall } = require('../../utils/chargeCaluate.js');
+const { distributeCommission } = require('../../utils/distributerCommission.js');
 
 const headers = {
     'Token': generatePaysprintJWT(),
@@ -24,6 +25,11 @@ exports.queryRemitter = async (req, res, next) => {
             { mobile: Number(mobile), lat, long },
             { headers }
         );
+        logApiCall({
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/remitter/queryremitter",
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.status(200).json(response.data);
 
     } catch (error) {
@@ -61,6 +67,12 @@ exports.remitterEkyc = async (req, res, next) => {
             },
             { headers }
         );
+        logApiCall({
+
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/remitter/queryremitter/kyc",
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.status(200).json({ ...response.data });
 
     } catch (error) {
@@ -82,6 +94,12 @@ exports.registerRemitter = async (req, res, next) => {
             },
             { headers }
         );
+        logApiCall({
+
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/remitter/registerremitter",
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.status(200).json({ ...response.data });
 
     } catch (error) {
@@ -120,6 +138,12 @@ exports.registerBeneficiary = async (req, res, next) => {
             payload,
             { headers }
         );
+        logApiCall({
+
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/beneficiary/registerbeneficiary",
+            requestData: req.body,
+            responseData: response.data
+        });
         if (response.data?.response_code === 1) {
             const newBeneficiary = new dmtBeneficiary({
                 user_id: req.user.id,
@@ -154,6 +178,12 @@ exports.deleteBeneficiary = async (req, res, next) => {
             },
             { headers }
         );
+        logApiCall({
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/beneficiary/registerbeneficiary/deletebeneficiary",
+
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.json({ ...response.data });
     } catch (error) {
         return next(error)
@@ -170,6 +200,12 @@ exports.fetchBeneficiary = async (req, res, next) => {
             'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/beneficiary/registerbeneficiary/fetchbeneficiary',
             { mobile }, { headers }
         );
+        logApiCall({
+
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/beneficiary/registerbeneficiary/fetchbeneficiary",
+            requestData: req.query,
+            responseData: response.data
+        });
         return res.json({ ...response.data });
 
     } catch (error) {
@@ -189,6 +225,13 @@ exports.BeneficiaryById = async (req, res, next) => {
             'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/beneficiary/registerbeneficiary/fetchbeneficiarybybeneid',
             { mobile, beneid }, { headers }
         );
+
+        logApiCall({
+
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/beneficiary/registerbeneficiary/fetchbeneficiarybybeneid",
+            requestData: req.query,
+            responseData: response.data
+        });
 
         return res.json({ ...response.data });
 
@@ -280,6 +323,13 @@ exports.PennyDrop = async (req, res, next) => {
             payload,
             { headers }
         );
+
+        logApiCall({
+
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/beneficiary/registerbeneficiary/benenameverify",
+            requestData: req.body,
+            responseData: result
+        });
 
         if (result.status === true && result.response_code == 1) {
             await DmtReport.create([{
@@ -387,6 +437,12 @@ exports.sendTransactionOtp = async (req, res, next) => {
             'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact/send_otp',
             payload, { headers }
         );
+        logApiCall({
+
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact/send_otp",
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.json(response.data);
     } catch (error) {
         return next(error)
@@ -413,7 +469,7 @@ exports.performTransaction = async (req, res, next) => {
             lat = "28.786543",
             long = "78.345678"
         } = req.body;
-        
+
         await getApplicableServiceCharge(req.user.id, "DMT");
 
         const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "DMT");
@@ -487,6 +543,12 @@ exports.performTransaction = async (req, res, next) => {
             payload,
             { headers }
         );
+        logApiCall({
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact",
+
+            requestData: req.body,
+            responseData: response.data
+        });
 
         const result = response?.data || {};
 
@@ -522,7 +584,15 @@ exports.performTransaction = async (req, res, next) => {
 
             await Promise.all([
                 PayOut.updateOne({ reference: referenceid }, { $set: { status: "Success" } }).session(session),
-                Transaction.updateOne({ transaction_reference_id: referenceid }, { $set: { status: "Success" } }).session(session)
+                Transaction.updateOne({ transaction_reference_id: referenceid }, { $set: { status: "Success" } }).session(session),
+                distributeCommission({
+                    distributer: user.distributorId,
+                    service: "DMT",
+                    amount,
+                    commission,
+                    reference: referenceid,
+                    description: "Commission for DMT Transaction",
+                })
             ]);
 
             debitTxn.status = "Success";
@@ -566,6 +636,12 @@ exports.TrackTransaction = async (req, res, next) => {
             'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact/querytransact',
             payload, { headers }
         );
+        logApiCall({
+
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/transact/transact/querytransact",
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.json(response.data);
     } catch (error) {
         return next(error)
@@ -589,6 +665,11 @@ exports.RefundOtp = async (req, res, next) => {
             'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/refund/refund/resendotp',
             payload, { headers }
         );
+        logApiCall({
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/refund/refund/resendotp",
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.json(response.data);
     } catch (error) {
         return next(error)
@@ -613,6 +694,11 @@ exports.Refund = async (req, res, next) => {
             'https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/refund/refund',
             payload, { headers }
         );
+        logApiCall({
+            url: "https://sit.paysprint.in/service-api/api/v1/service/dmt/kyc/refund/refund",
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.json({ ...response.data, message: response.data.message });
 
     } catch (error) {

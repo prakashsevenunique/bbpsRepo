@@ -6,6 +6,9 @@ const { parse } = require('json2csv');
 const userMetaModel = require("../models/userMetaModel.js");
 const PayIn = require("../models/payInModel.js");
 const PayOut = require("../models/payOutModel.js");
+const AEPSWithdrawal = require("../models/aepsModels/withdrawalEntry.js");
+const DmtReport = require("../models/dmtTransactionModel.js");
+const BbpsHistory = require("../models/bbpsModel.js");
 
 const sendOtpController = async (req, res) => {
   try {
@@ -98,7 +101,7 @@ const registerUser = async (req, res) => {
     if (!distributorId) {
       adminUser = await User.findOne({ role: 'Admin' });
     }
-    let NewUser = await User.create({ name, email, mobileNumber, address, pinCode, mpin, role, isAccountActive: role == "User" ? true : false, distributorId: distributorId ? distributorId : adminUser?._id });
+    let NewUser = await User.create({ name, email, mobileNumber, address, pinCode, mpin, role , status: role == "User" ? true : false,  distributorId: distributorId ? distributorId : adminUser?._id });
 
     let newUser = await NewUser.save();
     const token = generateJwtToken(newUser._id, newUser.role, newUser.mobileNumber);
@@ -315,107 +318,309 @@ const updateUserDetails = async (req, res) => {
 };
 
 const Transaction = require('../models/transactionModel.js');
+const servicesModal = require("../models/servicesModal.js");
 
-const getDashboardSummary = async (req, res) => {
+const startOfToday = new Date();
+startOfToday.setHours(0, 0, 0, 0);
+
+const getDashboardStats = async (req, res, next) => {
   try {
-    const { id: userId, role } = req.user;
+    const user = req.user;
+    const role = user.role;
 
-    let userFilter = {};
-    let payUserIds = [];
-    let eWalletUserIds = [];
-
-    // Determine users under scope
-    if (role === "retailer") {
-      userFilter = { userId: mongoose.Types.ObjectId(userId) };
-      payUserIds = [userId];
-      eWalletUserIds = [userId];
-
-    } else if (role === "distributor") {
-      const retailers = await User.find({ distributorId: userId, role: 'Retailer' }).select('_id');
-      const retailerIds = retailers.map(r => r._id.toString());
-      payUserIds = [userId, ...retailerIds];
-      eWalletUserIds = [userId, ...retailerIds];
-      userFilter = { userId: { $in: retailerIds.map(id => mongoose.Types.ObjectId(id)) } };
-
-    } else if (role === "admin") {
-      userFilter = {};
-      const allUsers = await User.find().select('_id');
-      const allUserIds = allUsers.map(u => u._id.toString());
-      payUserIds = allUserIds;
-      eWalletUserIds = allUserIds;
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Transaction Summary
-    const [totalTxn, todayTxn, statusCount, totalAmt, topBillers] = await Promise.all([
-      Transaction.countDocuments(userFilter),
-      Transaction.countDocuments({ ...userFilter, createdAt: { $gte: today } }),
-      Transaction.aggregate([
-        { $match: userFilter },
-        { $group: { _id: "$status", count: { $sum: 1 } } }
-      ]),
-      Transaction.aggregate([
-        { $match: { ...userFilter, status: "success" } },
-        { $group: { _id: null, total: { $sum: "$amount" } } }
-      ]),
-      Transaction.aggregate([
-        { $match: userFilter },
-        { $group: { _id: "$biller", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 5 }
-      ])
-    ]);
-
-    let walletBalance = 0;
-    if (eWalletUserIds.length > 0) {
-      const wallets = await User.find({ _id: { $in: eWalletUserIds.map(id => mongoose.Types.ObjectId(id)) } }).select("eWallet");
-      walletBalance = wallets.reduce((sum, user) => sum + (user.eWallet || 0), 0);
-    }
-
-    const payIn = await PayIn.aggregate([
-      { $match: { userId: { $in: payUserIds.map(id => mongoose.Types.ObjectId(id)) }, status: "Success" } },
-      { $group: { _id: null, total: { $sum: "$amount" } } }
-    ]);
-
-     const payOut = await PayOut.aggregate([
-      { $match: { userId: { $in: payUserIds.map(id => mongoose.Types.ObjectId(id)) }, status: "Success" } },
-      { $group: { _id: null, total: { $sum: "$amount" } } }
-    ]);
-
-    const success = statusCount.find(e => e._id === "success")?.count || 0;
-    const failed = statusCount.find(e => e._id === "failed")?.count || 0;
-    const total = success + failed;
-    const successRate = total ? ((success / total) * 100).toFixed(2) + '%' : '0%';
-    const failureRate = total ? ((failed / total) * 100).toFixed(2) + '%' : '0%';
-
-    const response = {
-      totalTransactions: totalTxn,
-      todayTransactions: todayTxn,
-      successRate,
-      failureRate,
-      totalAmount: totalAmt[0]?.total || 0,
-      walletBalance: parseFloat(walletBalance.toFixed(2)),
-      topBillers,
-      totalPayIn: payIn[0]?.total || 0,
-      totalPayOut: payOut[0]?.total || 0,
+    let stats = {
+      userInfo: {
+        name: user.name,
+        role: user.role,
+        wallet: user.eWallet,
+      }
     };
 
-    if (role === "admin") {
-      response.totalRetailers = await User.countDocuments({ role: "Retailer" });
-      response.totalDistributors = await User.countDocuments({ role: "Distributor" });
+    const matchToday = {
+      createdAt: { $gte: startOfToday }
+    };
+
+    const matchUser = (field = 'userId') => ({ [field]: user._id });
+    const matchTodayUser = (field = 'userId') => ({
+      [field]: user._id,
+      createdAt: { $gte: startOfToday }
+    });
+
+    // Admin dashboard
+    if (role === 'Admin') {
+      const [
+        totalUsers,
+        totalRetailers,
+        totalDistributors,
+        totalAepsTxns,
+        totalDmtTxns,
+        totalBbpsTxns,
+        totalPayouts,
+        totalPayIn,
+        totalWalletBalance,
+        todayPayins,
+        todayPayouts,
+        todayTxns,
+        failedTxns,
+        successTxns,
+        activeUsers,
+        activeServices
+      ] = await Promise.all([
+        User.countDocuments(),
+        User.countDocuments({ role: 'Retailer' }),
+        User.countDocuments({ role: 'Distributor' }),
+        AEPSWithdrawal.countDocuments(),
+        DmtReport.countDocuments(),
+        BbpsHistory.countDocuments(),
+        PayOut.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
+        PayIn.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
+        User.aggregate([{ $group: { _id: null, total: { $sum: "$eWallet" } } }]),
+        PayIn.countDocuments(matchToday),
+        PayOut.countDocuments(matchToday),
+        Transaction.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startOfToday }
+            }
+          },
+          {
+            $facet: {
+              byType: [
+                {
+                  $group: {
+                    _id: "$transaction_type",
+                    totalAmount: { $sum: "$amount" },
+                    count: { $sum: 1 }
+                  }
+                }
+              ],
+              byStatus: [
+                {
+                  $group: {
+                    _id: "$status",
+                    count: { $sum: 1 }
+                  }
+                }
+              ],
+              overall: [
+                {
+                  $group: {
+                    _id: null,
+                    totalTransactions: { $sum: 1 },
+                    totalAmount: { $sum: "$amount" }
+                  }
+                }
+              ]
+            }
+          }
+        ]),
+        Transaction.countDocuments({ ...matchToday, status: "Failed" }),
+        Transaction.countDocuments({ ...matchToday, status: "Success" }),
+        User.countDocuments({ status: true }),
+        servicesModal.countDocuments({ "isActive": true })
+      ]);
+
+      const successRate = successTxns + failedTxns > 0
+        ? ((successTxns / (successTxns + failedTxns)) * 100).toFixed(2)
+        : "0.00";
+
+      stats.overview = {
+        totalUsers,
+        totalRetailers,
+        totalDistributors,
+        totalAEPS: totalAepsTxns,
+        totalDMT: totalDmtTxns,
+        totalBBPS: totalBbpsTxns,
+        totalPayoutAmount: totalPayouts[0]?.total || 0,
+        totalPayInAmount: totalPayIn[0]?.total || 0,
+        totalWalletBalance: totalWalletBalance[0]?.total || 0,
+        activeUsers,
+        activeServices,
+        today: {
+          payinCount: todayPayins,
+          payoutCount: todayPayouts,
+          transactionCount: todayTxns,
+          successRate: `${successRate}%`,
+          failedTransactions: failedTxns
+        }
+      };
+
+    } else if (role === 'Distributor') {
+      const [
+        myRetailers,
+        myCommission,
+        aepsTxns,
+        dmtTxns,
+        totalWallet,
+        todayPayin,
+        todayPayout,
+        todayTxns,
+        failedTxns,
+        successTxns,
+
+      ] = await Promise.all([
+        User.countDocuments({ distributorId: user._id, role: 'Retailer' }),
+        PayIn.aggregate([
+          { $match: { userId: user._id, status: "Success" } },
+          { $group: { _id: null, total: { $sum: "$amount" } } }
+        ]),
+        AEPSWithdrawal.countDocuments({ userId: user._id }),
+        DmtReport.countDocuments({ user_id: user._id }),
+        User.aggregate([
+          { $match: { distributorId: user._id } },
+          { $group: { _id: null, total: { $sum: "$eWallet" } } }
+        ]),
+        PayIn.countDocuments(matchTodayUser()),
+        PayOut.countDocuments(matchTodayUser()),
+        Transaction.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startOfToday }
+            }
+          },
+          {
+            $facet: {
+              byType: [
+                {
+                  $group: {
+                    _id: "$transaction_type",
+                    totalAmount: { $sum: "$amount" },
+                    count: { $sum: 1 }
+                  }
+                }
+              ],
+              byStatus: [
+                {
+                  $group: {
+                    _id: "$status",
+                    count: { $sum: 1 }
+                  }
+                }
+              ],
+              overall: [
+                {
+                  $group: {
+                    _id: null,
+                    totalTransactions: { $sum: 1 },
+                    totalAmount: { $sum: "$amount" }
+                  }
+                }
+              ]
+            }
+          }
+        ]),
+        Transaction.countDocuments({ ...matchTodayUser('user_id'), status: "Failed" }),
+        Transaction.countDocuments({ ...matchTodayUser('user_id'), status: "Success" }),
+      ]);
+
+      const successRate = successTxns + failedTxns > 0
+        ? ((successTxns / (successTxns + failedTxns)) * 100).toFixed(2)
+        : "0.00";
+
+      stats.distributor = {
+        retailersUnderYou: myRetailers,
+        totalCommissionEarned: myCommission[0]?.total || 0,
+        totalRetailerWallet: totalWallet[0]?.total || 0,
+        aepsTransactions: aepsTxns,
+        dmtTransactions: dmtTxns,
+        today: {
+          payinCount: todayPayin,
+          payoutCount: todayPayout,
+          transactionCount: todayTxns,
+          successRate: `${successRate}%`,
+          failedTransactions: failedTxns
+        }
+      };
+
+    } else if (['Retailer', 'User'].includes(role)) {
+      const [
+        aeps,
+        dmt,
+        bbps,
+        txns,
+        todayPayin,
+        todayPayout,
+        todayTxns,
+        failedTxns,
+        successTxns
+      ] = await Promise.all([
+        AEPSWithdrawal.countDocuments({ userId: user._id }),
+        DmtReport.countDocuments({ user_id: user._id }),
+        BbpsHistory.countDocuments({ userId: user._id }),
+        Transaction.find({ user_id: user._id }).sort({ createdAt: -1 }).limit(5),
+        PayIn.countDocuments(matchTodayUser()),
+        PayOut.countDocuments(matchTodayUser()),
+        Transaction.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: startOfToday }
+            }
+          },
+          {
+            $facet: {
+              byType: [
+                {
+                  $group: {
+                    _id: "$transaction_type",
+                    totalAmount: { $sum: "$amount" },
+                    count: { $sum: 1 }
+                  }
+                }
+              ],
+              byStatus: [
+                {
+                  $group: {
+                    _id: "$status",
+                    count: { $sum: 1 }
+                  }
+                }
+              ],
+              overall: [
+                {
+                  $group: {
+                    _id: null,
+                    totalTransactions: { $sum: 1 },
+                    totalAmount: { $sum: "$amount" }
+                  }
+                }
+              ]
+            }
+          }
+        ]),
+        Transaction.countDocuments({ ...matchTodayUser('user_id'), status: "Failed" }),
+        Transaction.countDocuments({ ...matchTodayUser('user_id'), status: "Success" })
+      ]);
+
+      const successRate = successTxns + failedTxns > 0
+        ? ((successTxns / (successTxns + failedTxns)) * 100).toFixed(2)
+        : "0.00";
+
+      stats.user = {
+        totalAEPS: aeps,
+        totalDMT: dmt,
+        totalBBPS: bbps,
+        recentTransactions: txns,
+        today: {
+          payinCount: todayPayin,
+          payoutCount: todayPayout,
+          transactionCount: todayTxns,
+          successRate: `${successRate}%`,
+          failedTransactions: failedTxns
+        }
+      };
     }
 
-    if (role === "distributor") {
-      response.totalRetailers = await User.countDocuments({ distributorId: userId, role: 'Retailer' });
-    }
-    return res.json(response);
+    return res.status(200).json({
+      success: true,
+      data: stats
+    });
+
   } catch (err) {
     console.error("Dashboard Error:", err);
-    return res.status(500).json({ error: true, message: "Internal Server Error" });
+    return next(err);
   }
 };
+
 
 module.exports = {
   sendOtpController,
@@ -427,5 +632,5 @@ module.exports = {
   getUsersWithFilters,
   updateUserStatus,
   updateUserDetails,
-  getDashboardSummary
+  getDashboardStats
 };

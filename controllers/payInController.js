@@ -29,7 +29,7 @@ exports.allPayin = async (req, res, next) => {
         { reference: { $regex: keyword, $options: 'i' } }
       ];
     }
-    if (userId) match.user_id = new mongoose.Types.ObjectId(userId);
+    if (userId) match.userId = new mongoose.Types.ObjectId(userId);
 
     if (status) match.status = status;
 
@@ -120,7 +120,7 @@ exports.allPayin = async (req, res, next) => {
       }
     });
 
-  } catch (error) { next(error) }
+  } catch (error) { return next(error) }
 };
 
 exports.createPayIn = async (req, res, next) => {

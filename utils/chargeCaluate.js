@@ -2,6 +2,7 @@ const User = require("../models/userModel");
 const UserMeta = require("../models/userMetaModel");
 const Service = require("../models/servicesModal");
 const mongoose = require("mongoose");
+const logger= require("./logger");
 
 
 function calculateCommissionFromSlabs(amount, slabs, gstRate = 18, tdsRate = 5) {
@@ -30,7 +31,7 @@ function calculateCommissionFromSlabs(amount, slabs, gstRate = 18, tdsRate = 5) 
     admin: +admin.toFixed(2),
     gst: +gst.toFixed(3),
     tds: +tds.toFixed(3),
-    totalCommission: +(retailer + distributor + admin).toFixed(2)
+    totalCommission: +(retailer + distributor + admin + gst + tds).toFixed(2)
   };
 }
 
@@ -40,7 +41,6 @@ const getApplicableServiceCharge = async (userId, serviceName) => {
     throw new Error("Invalid userId or serviceId");
   }
 
-  // Fetch User and Service in parallel
   const [user, service] = await Promise.all([
     User.findById(userId),
     Service.findOne({ name: serviceName })
@@ -48,6 +48,9 @@ const getApplicableServiceCharge = async (userId, serviceName) => {
 
   if (!user || !user.status) {
     throw new Error("User not found or inactive");
+  }
+  if (!user || !user.isKycVerified) {
+    throw new Error("User Kyc not verified");
   }
 
   if (!service || !service.isActive) {
@@ -94,7 +97,7 @@ const getApplicableServiceCharge = async (userId, serviceName) => {
     gst: matchedProvider.gst || 0,
     tds: matchedProvider.tds || 0,
     distributorCommission: matchedProvider.distributorCommission || 0,
-    adminCommission: matchedProvider.adminCommission || 0 ,
+    adminCommission: matchedProvider.adminCommission || 0,
   };
 };
 
@@ -133,8 +136,14 @@ function applyServiceCharges(amount, commissions) {
   };
 }
 
+function logApiCall({ url, requestData, responseData = null, error = null }) {
+  if (responseData) {
+    logger.info(`baseurl ${url} Request :`, requestData);
+    logger.info(`baseurl ${url} Response:`, responseData);
+  }
+}
 
 module.exports = {
-  getApplicableServiceCharge, calculateCommissionFromSlabs, applyServiceCharges
+  getApplicableServiceCharge, calculateCommissionFromSlabs, applyServiceCharges, logApiCall
 };
 

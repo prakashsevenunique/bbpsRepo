@@ -4,7 +4,7 @@ const { startSession } = require('mongoose');
 const userModel = require("../../models/userModel");
 const Transaction = require("../../models/transactionModel");
 const bbpsModel = require("../../models/bbpsModel");
-const { getApplicableServiceCharge, applyServiceCharges } = require("../../utils/chargeCaluate");
+const { getApplicableServiceCharge, applyServiceCharges, logApiCall } = require("../../utils/chargeCaluate");
 
 const headers = {
   Token: generatePaysprintJWT(),
@@ -47,6 +47,11 @@ const getSourceCities = async (req, res, next) => {
       {},
       { headers }
     );
+    // logApiCall({
+    //   tag: "/bus/ticket/source",
+    //   // requestData: req.body,
+    //   responseData: response.data
+    // });
     handleResponse(res, response.data, "Source cities fetched successfully");
   } catch (error) {
 
@@ -66,6 +71,13 @@ const getAvailableTrips = async (req, res) => {
       { source_id, destination_id, date_of_journey },
       { headers }
     );
+    console.log("Available trips response:", source_id, destination_id, date_of_journey);
+
+    logApiCall({
+      tag: "bus/ticket/availabletrips",
+      requestData: req.body,
+      responseData: response.data
+    });
     handleResponse(res, response.data, "Available trips fetched successfully");
   } catch (error) {
     res.status(500).json(handleApiError(error));
@@ -80,6 +92,11 @@ const getTripDetails = async (req, res) => {
       { trip_id },
       { headers }
     );
+    logApiCall({
+      tag: "/bus/ticket/tripdetails",
+      requestData: req.body,
+      responseData: response.data
+    });
     handleResponse(res, response.data, "Trip details fetched successfully");
   } catch (error) {
     res.status(500).json(handleApiError(error));
@@ -94,6 +111,11 @@ const getBoardingPointDetail = async (req, res) => {
       { bpId, trip_id },
       { headers }
     );
+    logApiCall({
+      tag: "bus/ticket/boardingPoint",
+      requestData: req.body,
+      responseData: response.data
+    });
     handleResponse(res, response.data, "Boarding point details fetched successfully");
   } catch (error) {
     res.status(500).json(handleApiError(error));
@@ -122,6 +144,12 @@ const blockTicket = async (req, res) => {
       req.body,
       { headers }
     );
+    console.log("Block ticket response:", req.body);
+    logApiCall({
+      tag: "bus/ticket/blockticket",
+      requestData: req.body,
+      responseData: response.data
+    });
     handleResponse(res, response.data, "Ticket blocked successfully");
   } catch (error) {
     console.log("Error in blockTicket:", error);
@@ -165,6 +193,13 @@ const bookTicket = async (req, res) => {
       { amount, passenger_phone, passenger_email, ...bookingData, refid: referenceid },
       { headers }
     );
+ 
+
+    logApiCall({
+      tag: "bus/ticket/bookticket",
+      requestData: req.body,
+      responseData: paysprintRes.data
+    });
 
     const { response_code, message } = paysprintRes.data;
     let status = "Failed";
@@ -240,7 +275,6 @@ const bookTicket = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-
     return res.status(500).json({
       status: "error",
       message: error.message,
@@ -257,6 +291,11 @@ const checkBookedTicket = async (req, res) => {
       { refid },
       { headers }
     );
+    logApiCall({
+      tag: "bus/ticket/check_booked_ticket",
+      requestData: req.body,
+      responseData: response.data
+    });
     handleResponse(res, response.data, "Ticket details retrieved successfully");
   } catch (error) {
     res.status(500).json(handleApiError(error));
@@ -271,6 +310,11 @@ const getTicketDetails = async (req, res) => {
       { refid },
       { headers }
     );
+    logApiCall({
+      tag: "bus/ticket/get_ticket",
+      requestData: req.body,
+      responseData: response.data
+    });
     handleResponse(res, response.data, "Ticket retrieved successfully");
   } catch (error) {
     res.status(500).json(handleApiError(error));
@@ -286,6 +330,11 @@ const getCancellationData = async (req, res) => {
       { refid },
       { headers }
     );
+    logApiCall({
+      tag: "bus/ticket/get_cancellation_data",
+      requestData: req.body,
+      responseData: response.data
+    });
     handleResponse(res, response.data, "Cancellation data fetched successfully");
   } catch (error) {
     res.status(500).json(handleApiError(error));
@@ -300,7 +349,7 @@ const cancelTicket = async (req, res) => {
 
   try {
     // First check if the ticket exists in our system
-    const booking = await Booking.findOne({ refid }).session(session);
+    const booking = await booking.findOne({ refid }).session(session);
     if (!booking) {
       throw new Error("Booking not found");
     }
@@ -311,6 +360,12 @@ const cancelTicket = async (req, res) => {
       { refid, seatsToCancel },
       { headers }
     );
+
+    logApiCall({
+      tag: "bus/ticket/cancel_ticket",
+      requestData: req.body,
+      responseData: response.data
+    });
 
     if (response.data.response_code !== 1) {
       throw new Error(response.data.message || "Cancellation failed");

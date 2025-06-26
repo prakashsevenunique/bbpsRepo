@@ -7,7 +7,7 @@ const userModel = require('../../models/userModel.js');
 const { default: mongoose } = require('mongoose');
 const AEPSWithdrawal = require('../../models/aepsModels/withdrawalEntry.js');
 const getDmtOrAepsMeta = require('../../utils/aeps&DmtCommmsion.js');
-const { calculateCommissionFromSlabs, getApplicableServiceCharge } = require('../../utils/chargeCaluate.js');
+const { calculateCommissionFromSlabs, getApplicableServiceCharge, logApiCall } = require('../../utils/chargeCaluate.js');
 const Transaction = require('../../models/transactionModel.js');
 const payOutModel = require('../../models/payOutModel.js');
 const logger = require('../../utils/logger.js');
@@ -80,9 +80,14 @@ exports.generateOnboardURL = async (req, res) => {
         if (!onboardingUser) {
             return res.status(404).json({ message: 'User not found or inactive.' });
         }
-        logger.info(`Received request`, { payload: payload, BASE_URL: BASE_URL, headers: headers })
         const response = await axios.post(BASE_URL, payload, {
             headers
+        });
+        logApiCall({
+
+            url: BASE_URL,
+            requestData: req.body,
+            responseData: response.data
         });
         if (response.data.status) {
             await OnboardTransaction.create({
@@ -93,7 +98,6 @@ exports.generateOnboardURL = async (req, res) => {
                 firm,
                 callback
             });
-            logger.info(`Received response`, { response: response.data })
 
             return res.json({
                 redirectUrl: response.data.redirecturl,
@@ -213,6 +217,11 @@ exports.activateMerchant = async (req, res, next) => {
         const response = await axios.post('https://sit.paysprint.in/service-api/api/v1/service/onboard/onboard/activate_merchant', payload, {
             headers
         });
+        logApiCall({
+            url: 'https://sit.paysprint.in/service-api/api/v1/service/onboard/onboard/activate_merchant',
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.status(response.status).json(response.data);
     } catch (error) {
         console.error("Error activating merchant:", error);
@@ -239,6 +248,11 @@ exports.checkOnboardStatus = async (req, res, next) => {
         };
         const response = await axios.post("https://sit.paysprint.in/service-api/api/v1/service/onboard/onboard/getonboardstatus", payload, {
             headers
+        });
+        logApiCall({
+           url: "https://sit.paysprint.in/service-api/api/v1/service/onboard/onboard/getonboardstatus",
+            requestData: req.body,
+            responseData: response.data
         });
         return res.status(response.status).json(response.data);
     } catch (error) {
@@ -295,6 +309,11 @@ exports.registerMerchant = async (req, res, next) => {
             { body: encryptedBody },
             { headers }
         );
+        logApiCall({
+          url: 'https://sit.paysprint.in/service-api/api/v1/service/aeps/kyc/Twofactorkyc/registration',
+            requestData: req.body,
+            responseData: response.data
+        });
 
         if (response.data.response_code == 1) {
             await OnboardTransaction.findOneAndUpdate(
@@ -359,6 +378,12 @@ exports.authenticateMerchant = async (req, res) => {
             { headers }
         );
 
+        logApiCall({
+           url: 'https://sit.paysprint.in/service-api/api/v1/service/aeps/kyc/Twofactorkyc/authentication',
+            requestData: req.body,
+            responseData: response.data
+        });
+
         return res.status(response.status).json(response.data);
 
     } catch (error) {
@@ -408,6 +433,11 @@ exports.balanceEnquiry = async (req, res, next) => {
             { body: encryptedBody },
             { headers }
         );
+        logApiCall({
+          url: "https://sit.paysprint.in/service-api/api/v1/service/aeps/balanceenquiry/index",
+            requestData: req.body,
+            responseData: psResp
+        });
         return res.json(psResp);
     } catch (err) {
         return next(err);
@@ -456,18 +486,6 @@ exports.withdrawWithAuth = async (req, res, next) => {
             return res.status(404).json({ error: true, message: "User not found" });
         }
 
-        // {
-        //   amount: '51',
-        //   slabRange: '[1 - 2999]',
-        //   commissionType: 'percentage',
-        //   retailer: 0.08,
-        //   distributor: 0.08,
-        //   admin: 0.08,
-        //   gst: 0.014,
-        //   tds: 0.004,
-        //   totalCommission: 0.23
-        // }
-
         const { commissionPackage } = await getDmtOrAepsMeta(req.user.id, "AEPS");
         if (!commissionPackage?.isActive) {
             await session.abortTransaction();
@@ -476,8 +494,6 @@ exports.withdrawWithAuth = async (req, res, next) => {
 
         const commission = calculateCommissionFromSlabs(amount, commissionPackage?.slabs || []);
         const totalDebit = commission.totalCommission;
-
-        console.log(commission)
 
         if (user.eWallet < totalDebit) {
             await session.abortTransaction();
@@ -513,6 +529,11 @@ exports.withdrawWithAuth = async (req, res, next) => {
             { body: encryptedBody },
             { headers, timeout: 180000 }
         );
+        logApiCall({
+         url: "https://sit.paysprint.in/service-api/api/v1/service/aeps/authcashwithdraw/index",
+            requestData: req.body,
+            responseData: response.data
+        });
         const resData = response?.data;
         if (resData?.status) {
             if (resData?.status) {
@@ -657,6 +678,11 @@ exports.getMiniStatement = async (req, res, next) => {
                 timeout: 180000
             }
         );
+        logApiCall({
+            url: "https://sit.paysprint.in/service-api/api/v1/service/aeps/ministatement/index",
+            requestData: req.body,
+            responseData: response.data
+        });
         return res.json(response.data);
     } catch (error) {
         return next(error);
@@ -670,6 +696,11 @@ exports.getAepsBankList = async (req, res, next) => {
             {},
             { headers }
         );
+        logApiCall({
+        url: "https://sit.paysprint.in/service-api/api/v1/service/aeps/banklist/index",
+            requestData: {},
+            responseData: response.data
+        });
         return res.json(response?.data?.banklist || []);
     } catch (error) {
         return next(error)

@@ -27,11 +27,11 @@ app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(apiLogger);
+// app.use(apiLogger);
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/user", require("./routes/userMetaRoutes.js"));
-app.use("/api/v1/kyc", KycRoutes);
+app.use("/api/kyc", KycRoutes);
 
 
 

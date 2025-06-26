@@ -5,7 +5,7 @@ const PayOut = require("../../models/payOutModel.js")
 const Transaction = require("../../models/transactionModel.js");
 const userModel = require("../../models/userModel.js");
 const mongoose = require("mongoose");
-const { getApplicableServiceCharge, applyServiceCharges } = require("../../utils/chargeCaluate.js");
+const { getApplicableServiceCharge, applyServiceCharges, logApiCall } = require("../../utils/chargeCaluate.js");
 
 const headers = {
   'Token': generatePaysprintJWT(),
@@ -27,6 +27,14 @@ exports.hlrCheck = async (req, res, next) => {
       type
     };
     const response = await axios.post(apiUrl, requestData, { headers });
+
+    logApiCall({
+
+      url: apiUrl,
+      requestData,
+      responseData: response.data
+    });
+
     return res.status(200).json({
       data: response.data
     });
@@ -44,6 +52,13 @@ exports.browsePlan = async (req, res, next) => {
       op
     };
     const response = await axios.post(apiUrl, requestData, { headers });
+    logApiCall({
+      url: apiUrl,
+
+      requestData,
+      responseData: response.data
+    });
+
     return res.status(200).json({
       data: response.data
     });
@@ -61,6 +76,14 @@ exports.dthPlan = async (req, res, next) => {
       op
     };
     const response = await axios.post(apiUrl, requestData, { headers });
+
+    logApiCall({
+      url: apiUrl,
+
+      requestData,
+      responseData: response.data
+    });
+
     return res.status(200).json(response.data);
   } catch (error) {
     return next(error);
@@ -74,6 +97,15 @@ exports.getOperatorList = async (req, res, next) => {
       {},
       { headers }
     );
+
+    logApiCall({
+      url: "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator",
+
+
+      requestData: req.body,
+      responseData: response.data
+    });
+
 
     if (response.data?.responsecode === 1) {
       req.operators = response.data.data;
@@ -136,6 +168,14 @@ exports.doRecharge = async (req, res, next) => {
       { headers }
     );
 
+    logApiCall({
+      url: "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator",
+
+      requestData: {},
+      responseData: operatorRes.data
+    });
+
+
     if (operatorRes.data?.responsecode !== 1) {
       throw new Error("Operator lookup failed");
     }
@@ -167,6 +207,13 @@ exports.doRecharge = async (req, res, next) => {
       { operator: operatorId, canumber, amount, referenceid },
       { headers }
     );
+
+    logApiCall({
+      url: "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/dorecharge",
+
+      requestData: req.body,
+      responseData: rechargeRes.data
+    });
 
     const { response_code, message } = rechargeRes.data;
     let status = "Failed";
@@ -243,6 +290,13 @@ exports.checkRechargeStatus = async (req, res, next) => {
       },
       { headers }
     );
+
+    logApiCall({
+      url: "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/status",
+
+      requestData: req.params,
+      responseData: response.data
+    });
     const resData = response.data;
     if (resData.status === true) {
       const txnStatus = resData.data?.status;
@@ -286,6 +340,12 @@ exports.getBillOperatorList = async (req, res) => {
       { mode },
       { headers }
     );
+    logApiCall({
+      url: "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/getoperator",
+
+      requestData: req.body,
+      responseData: response.data
+    });
 
     const data = response.data;
     if (data.response_code === 1) {
@@ -317,6 +377,13 @@ exports.fetchBillDetails = async (req, res) => {
       { operator, canumber, mode, ...extraFields },
       { headers }
     );
+
+    logApiCall({
+      url: "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/fetchbill",
+
+      requestData: req.body,
+      responseData: response.data
+    });
 
     const data = response.data;
     if (data.response_code === 1) {
@@ -372,6 +439,13 @@ exports.payBill = async (req, res, next) => {
       { operator, canumber, amount, referenceid, latitude, longitude, mode, bill_fetch },
       { headers }
     );
+
+    logApiCall({
+      url: "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/paybill",
+
+      requestData: req.body,
+      responseData: response.data
+    });
     const { response_code, message } = response.data;
 
     let status;
@@ -448,6 +522,13 @@ exports.checkBillPaymentStatus = async (req, res, next) => {
       { referenceid },
       { headers }
     );
+
+    logApiCall({
+      url: "https://sit.paysprint.in/service-api/api/v1/service/bill-payment/bill/status",
+
+      requestData: req.body,
+      responseData: response.data
+    });
 
     const data = response.data;
     if (data.status === true) {
