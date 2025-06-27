@@ -38,7 +38,7 @@ const serviceValidator = {
             .required(),
 
         defaultSwitch: Joi.string()
-            .valid('billAwene', 'spritVerify', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8')
+            .valid('billAvenue', 'spritVerify', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8')
             .required(),
 
         providers: Joi.array()

@@ -415,18 +415,17 @@ exports.payBill = async (req, res, next) => {
     let commissions = await getApplicableServiceCharge(userId, "Bill Payment")
     const charges = applyServiceCharges(amount, commissions)
     const user = await userModel.findOne({ _id: userId, mpin }).session(session);
-
-    if (!user || user.eWallet < (amount + charges.totalDeducted)) {
+    if (!user || user.eWallet < (Number(amount) + Number(charges.totalDeducted))) {
       throw new Error("Wrong mpin or Insufficient wallet balance");
     }
 
-    user.eWallet -= (amount + charges.totalDeducted);
+    user.eWallet -= (Number(amount) + Number(charges.totalDeducted));
     await user.save({ session });
 
     const debitTxn = await Transaction.create([{
       user_id: userId,
       transaction_type: "debit",
-      amount: (amount + charges.totalDeducted),
+      amount: (Number(amount) + Number(charges.totalDeducted)),
       balance_after: user.eWallet,
       payment_mode: "wallet",
       transaction_reference_id: referenceid,
@@ -466,12 +465,12 @@ exports.payBill = async (req, res, next) => {
     }], { session });
 
     if (status === "Failed") {
-      user.eWallet += (amount + charges.totalDeducted);
+      user.eWallet += (Number(amount) + Number(charges.totalDeducted));
       await user.save({ session });
       await Transaction.create([{
         user_id: userId,
         transaction_type: "credit",
-        amount: (amount + charges.totalDeducted),
+        amount: (Number(amount) + Number(charges.totalDeducted)),
         balance_after: user.eWallet,
         payment_mode: "wallet",
         transaction_reference_id: `${referenceid}-refund`,

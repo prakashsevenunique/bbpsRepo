@@ -24,7 +24,7 @@ const serviceSchema = new mongoose.Schema(
     },
     defaultSwitch: {
       type: String,
-      enum: ['billAwene', 'spritVerify', 'Mobikwik', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
+      enum: ['billAvenue', 'spritVerify', 'Mobikwik', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
       required: true,
       default: 'spritVerify',
     },
@@ -32,7 +32,7 @@ const serviceSchema = new mongoose.Schema(
       {
         providerName: {
           type: String,
-          enum: ['billAwene', 'spritVerify', 'serverMaintenance', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
+          enum: ['billAvenue', 'spritVerify', 'serverMaintenance', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
           required: true,
           default: 'spritVerify'
         },
