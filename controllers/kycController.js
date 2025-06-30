@@ -3,167 +3,170 @@ const User = require("../models/userModel");
 const jwt = require('jsonwebtoken');
 require("dotenv").config();
 
-
 function generateToken() {
-  return jwt.sign({}, "18fc02b675bfa38fbb3350b18e0fc45cf3740bd3be6104e4d310188943d09535", {
+  const token = jwt.sign({}, "18fc02b675bfa38fbb3350b18e0fc45cf3740bd3be6104e4d310188943d09535", {
     algorithm: "HS256",
   });
-};
+  console.log("🔐 Generated JWT:", token);
+  return token;
+}
 
 const aadhaarVerify = async (req, res, next) => {
   const { aadharNumber } = req.body;
-  const id_number = aadharNumber
-  if (!aadharNumber) {
-    res.send("Aadhar Number is required");
-  }
+  const id_number = aadharNumber;
+  console.log("📩 Aadhaar OTP Request for:", id_number);
+
+  if (!aadharNumber) return res.send("Aadhar Number is required");
+
   try {
-    const generateOtpResponse = await axios.post(`https://api.7uniqueverfiy.com/api/verify/adhar/send/otp`, { id_number: id_number, }, {
-      headers: {
-        "client-id": 'Seven012',
-        "authorization": `Bearer ${generateToken()}`,
-        "x-env": "production",
-        "Content-Type": "application/json",
+    const generateOtpResponse = await axios.post(
+      `https://api.7uniqueverfiy.com/api/verify/adhar/send/otp`,
+      { id_number },
+      {
+        headers: {
+          "client-id": 'Seven012',
+          "authorization": `Bearer ${generateToken()}`,
+          "x-env": "production",
+          "Content-Type": "application/json",
+        },
       }
-    });
+    );
+    console.log("✅ Aadhaar OTP API Response:", generateOtpResponse.data);
+
     return res.send({
       message: "OTP send successful",
       data: generateOtpResponse.data,
     });
   } catch (error) {
-    console.log(error);
-    return next(error)
+    console.error("❌ Aadhaar OTP Send Error:", error.response?.data || error.message);
+    return next(error);
   }
 };
 
 const submitAadharOTP = async (req, res) => {
-  const { otp, client_id } = req.body;
-  let user = await User.findById(req.user.id)
-  if (!user) {
-    return res.status(404).json({ message: "User not found" });
-  }
-  const generateOtpResponse = await axios.post(`https://api.7uniqueverfiy.com/api/verify/adhar/verify/otp
-`, {
-    method: "POST",
-    headers: {
+  const { otp, client_id ,userId} = req.body;
+  console.log("📲 Submitting Aadhaar OTP:", otp);
 
-      "client-id": 'Seven012',
-      "authorization": `Bearer ${generateToken()}`,
-      "x-env": "production",
-      // ❌ DO NOT manually set Content-Type for FormData
-    },
-    body: requestData,
-  });
-  const nameFromAadhar = submitOtpResponse?.data?.data;
+  let user = await User.findById(userId);
+  if (!user) return res.status(404).json({ message: "User not found" });
 
-  if (
-    submitOtpResponse.data &&
-    submitOtpResponse.data.message_code === "success"
-  ) {
-    user.aadharDetails = nameFromAadhar;
-    await user.save();
-    return res.send({
-      message: "Aadhaar verification successful",
-      data: submitOtpResponse.data,
-      name: nameFromAadhar,
-    });
-  } else {
-    return res.send("Aadhaar verification failed");
-  }
-};
+  const requestData = { otp, client_id };
 
-const verifyBank = async (req, res) => {
-  const { id_number, ifsc } = req.body;
-  let user = await User.findById(req.user.id);
-
-  if (!user) {
-    return res.status(404).json({ message: "User not found" });
-  }
   try {
-    if (!id_number || !ifsc) {
-      return res
-        .status(400)
-        .json({ success: false, message: "IFSC number or ID is missing" });
-    }
-    const url = "https://api.7uniqueverfiy.com/api/verify/bankVerify/v2";
-    const response = await axios.post(
-      url,
-      {
-       account_number: id_number,
-        ifsc_code:ifsc,
-        
-      },
+    const submitOtpResponse = await axios.post(
+      `https://api.7uniqueverfiy.com/api/verify/adhar/verify/otp`,
+      requestData,
       {
         headers: {
-
           "client-id": 'Seven012',
           "authorization": `Bearer ${generateToken()}`,
           "x-env": "production",
-        
         },
       }
     );
-    const nameFromBank = response.data.data;
-    user.bankDetails = nameFromBank;
+    console.log("✅ Aadhaar OTP Submit Response:", submitOtpResponse.data);
+
+    const nameFromAadhar = submitOtpResponse?.data?.data?.data;
+
+    if (
+      submitOtpResponse.data &&
+      submitOtpResponse.data.data &&
+      submitOtpResponse.data.data.status === true
+    ) {
+      user.aadharDetails = nameFromAadhar;
+      await user.save();
+      return res.send({
+        message: "Aadhaar verification successful",
+        data: submitOtpResponse.data,
+        name: nameFromAadhar,
+      });
+    } else {
+      console.log("❌ Aadhaar verification failed response:", submitOtpResponse.data);
+      return res.send("Aadhaar verification failed");
+    }
+  } catch (error) {
+    console.error("❌ Aadhaar OTP Submit Error:", error.response?.data || error.message);
+    return res.status(500).json({ message: "Error verifying Aadhaar OTP" });
+  }
+}; 
+
+
+const verifyBank = async (req, res) => {
+  const { id_number, ifsc,userId } = req.body;
+  console.log("🏦 Verifying Bank for:", id_number, ifsc);
+
+  let user = await User.findById(userId);
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  if (!id_number || !ifsc) {
+    console.warn("⚠️ Bank Verify: Missing id_number or ifsc");
+    return res.status(400).json({ success: false, message: "IFSC number or ID is missing" });
+  }
+
+  try {
+    const response = await axios.post(
+      "https://api.7uniqueverfiy.com/api/verify/bankVerify/pennyless/v3",
+      {
+        account_number: id_number,
+        ifsc_code: ifsc,
+     
+      },
+      {
+        headers: {
+          "client-id": 'Seven012',
+          "authorization": `Bearer ${generateToken()}`,
+          "x-env": "production",
+        },
+      }
+    );
+
+    console.log("✅ Bank Verification Response:", response.data);
+
+    const nameFromBank = response.data;
+    user.bankDetails = nameFromBank.data.data;
     await user.save();
 
-    return res
-      .status(200)
-      .json({ pandata: response.data, success: true, name: nameFromBank });
+    return res.status(200).json({ pandata: response.data, success: true, name: nameFromBank });
   } catch (error) {
-    console.error("Error in verifyBank:", error.message);
-    return res
-      .status(500)
-      .json({ success: false, message: "Error verifying bank details" });
+    console.error("❌ Error in verifyBank:", error.response?.data || error.message);
+    return res.status(500).json({ success: false, message: "Error verifying bank details" });
   }
 };
 
 const verifyPAN = async (req, res) => {
-  const { id_number } = req.body;
+  const { id_number ,userId} = req.body;
 
   console.log("🔍 PAN Verification Requested for:", id_number);
 
   try {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      console.log("❌ User not found:", req.user.id);
-      return res.status(404).json({ message: "User not found" });
-    }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (!id_number) {
-      console.log("⚠️ PAN number is missing in request body");
-      return res
-        .status(400)
-        .json({ success: false, message: "PAN number missing" });
-    }
+    if (!id_number) return res.status(400).json({ success: false, message: "PAN number missing" });
 
-    const url = "https://api.7uniqueverfiy.com/api/verify/pan_verify";
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${generateToken()}`,
-      "Client-id": 'Seven012',
-      "x-env": "production"
-    };
+    const response = await axios.post(
+      "https://api.7uniqueverfiy.com/api/verify/pan_verify",
+      { pannumber: id_number },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${generateToken()}`,
+          "Client-id": 'Seven012',
+          "x-env": "production",
+        },
+      }
+    );
 
-    console.log("🌐 Sending request to:", url);
-    console.log("📦 Request Headers:", headers);
-
-    const response = await axios.post(url, { pannumber: id_number }, { headers });
-
-    console.log("✅ API Response:", response.data);
+    console.log("✅ PAN API Response:", response.data);
 
     const nameFromPAN = response.data.data;
-    user.panDetails = nameFromPAN;
+    user.panDetails = nameFromPAN.data;
     await user.save();
 
-    return res
-      .status(200)
-      .json({ success: true, name: nameFromPAN, data: response.data });
-
+    return res.status(200).json({ success: true, name: nameFromPAN, data: response.data });
   } catch (error) {
     console.error("❌ PAN Verification Error:", error.response?.data || error.message);
-    return res
-      .status(500)
-      .json({ success: false, message: "Error verifying PAN details" });
+    return res.status(500).json({ success: false, message: "Error verifying PAN details" });
   }
 };
 
@@ -179,50 +182,52 @@ const normalizeName = (name) => {
 };
 
 const userVerify = async (req, res) => {
-  const user = await User.findById(req.user.id);
-  if (!user) {
-    return "User not found!";
-  }
-  const normalizedAadharName = normalizeName(user.aadharDetails.full_name);
-  const normalizedPanName = normalizeName(user.panDetails.full_name);
-  const normalizedBankName = normalizeName(user.bankDetails.full_name);
+    const { userId} = req.body;
+  const user = await User.findById(userId);
+  if (!user) return res.status(404).send("User not found!");
 
-  if (
-    normalizedAadharName == normalizedPanName &&
-    normalizedPanName == normalizedBankName
-  ) {
-    user.isKycVerified = true;
+  const normalizedAadharName = normalizeName(user.aadharDetails.full_name || "");
+  const normalizedPanName = normalizeName(user.panDetails.full_name || "");
+  const normalizedBankName = normalizeName(user.bankDetails.beneficiary_name || "");
+
+  console.log("🧾 Normalized Names:", {
+    Aadhaar: normalizedAadharName,
+    PAN: normalizedPanName,
+    Bank: normalizedBankName,
+  });
+
+  if (normalizedAadharName === normalizedPanName && normalizedPanName === normalizedBankName) {
+    user.isKycVerified = false;
     await user.save();
-    return res.status(200).send("user verified successfully");
+    return res.status(200).send("User verified successfully");
   }
-  user.aadharDetails = {};
-  user.panDetails = {};
-  user.bankDetails = {};
 
+  // user.aadharDetails = {};
+  // user.panDetails = {};
+  // user.bankDetails = {};
   user.isKycVerified = false;
   await user.save();
 
-  return res
-    .status(400)
-    .send("Dismatched User details please Correct the information");
+  return res.status(400).send("Dismatched User details. Please correct the information.");
 };
 
 const updateBankAccount = async (req, res) => {
   const { id_number, ifsc } = req.body;
-  let user = await User.findById(req.user.id);
+  console.log("🔄 Updating Bank Account:", id_number, ifsc);
 
-  if (!user) {
-    return res.status(404).json({ message: "User not found" });
+  let user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  const normalizedAadharName = normalizeName(user.aadharDetails.full_name || "");
+  const normalizedPanName = normalizeName(user.panDetails.full_name || "");
+
+  if (!id_number || !ifsc) {
+    return res.status(400).json({ success: false, message: "IFSC number or ID is missing" });
   }
-  const normalizedAadharName = normalizeName(user.aadharDetails.full_name);
-  const normalizedPanName = normalizeName(user.panDetails.full_name);
+
   try {
-    if (!id_number || !ifsc) {
-      return res.status(400).json({ success: false, message: "IFSC number or ID is missing" });
-    }
-    const url = "https://kyc-api.surepass.io/api/v1/bank-verification/";
     const response = await axios.post(
-      url,
+      "https://kyc-api.surepass.io/api/v1/bank-verification/",
       { id_number, ifsc, ifsc_details: true },
       {
         headers: {
@@ -232,24 +237,24 @@ const updateBankAccount = async (req, res) => {
       }
     );
 
+    console.log("✅ Surepass Bank Verify Response:", response.data);
+
     const nameFromBank = response.data.data.full_name;
     const normalizedBankName = normalizeName(nameFromBank);
 
     if (normalizedAadharName === normalizedBankName && normalizedPanName === normalizedBankName) {
-      user.bankDetails = response.data.data; // Update bank details
+      user.bankDetails = response.data.data;
       await user.save();
       return res.status(200).json({ success: true, message: "Bank details updated successfully", data: response.data });
     } else {
+      console.warn("❌ Name Mismatch with Aadhaar & PAN");
       return res.status(400).json({ success: false, message: "Bank account name mismatch with Aadhaar & PAN" });
     }
-
   } catch (error) {
-    console.error("Error updating bank account:", error.message);
+    console.error("❌ Error updating bank account:", error.response?.data || error.message);
     return res.status(500).json({ success: false, message: "Error updating bank details" });
   }
 };
-
-
 
 module.exports = {
   aadhaarVerify,

@@ -8,7 +8,7 @@ router.post('/aadhar-verify',aadhaarVerify);
 router.post('/submit-aadhar-otp',authenticateToken ,submitAadharOTP);
 router.post("/verifybank",authenticateToken, verifyBank);
 router.post("/verifyPAN",authenticateToken, verifyPAN);
-router.get("/verifyUser",authenticateToken, userVerify);
+router.post("/verifyUser",authenticateToken, userVerify);
 router.post("/bank/update",authenticateToken,updateBankAccount)
 
 module.exports = router;

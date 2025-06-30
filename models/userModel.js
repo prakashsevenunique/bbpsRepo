@@ -70,26 +70,8 @@ const userSchema = new mongoose.Schema(
       required: false,
     },
     bankDetails: {
-      accountHolderName: {
-        type: String,
-        trim: true
-      },
-      accountNumber: {
-        type: String,
-        trim: true
-      },
-      ifscCode: {
-        type: String,
-        trim: true
-      },
-      bankName: {
-        type: String,
-        trim: true
-      },
-      branchName: {
-        type: String,
-        trim: true
-      }
+     type: Object,
+      required: false,
     },
     aadharDetails: {
       type: Object,

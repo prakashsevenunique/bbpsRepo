@@ -284,7 +284,7 @@ exports.getMerchantByUserId = async (req, res) => {
     const merchantData = await OnboardTransaction.findOne({ merchantcode: 101 });
 
     if (!merchantData || merchantData.length === 0) {
-      return res.status(404).json({ message: 'No merchant records found for this user.' });
+      return res.status(404).json({ message: 'No merchant records found for this user' });
     }
     return res.status(200).json(merchantData);
   } catch (error) {
