@@ -150,7 +150,7 @@ exports.getAllDmtReports = async (req, res, next) => {
     } else {
       filter.user_id = userId;
     }
-    if (status !== undefined) filter.status = status === 'true';
+    if (typeof status != "undefined") filter.status = status == 1 ? true : false;
     if (referenceid) filter.referenceid = referenceid;
     if (remitter) filter.remitter = remitter;
     if (startDate && endDate) {
@@ -284,7 +284,7 @@ exports.getMerchantByUserId = async (req, res) => {
     const merchantData = await OnboardTransaction.findOne({ merchantcode: 101 });
 
     if (!merchantData || merchantData.length === 0) {
-      return res.status(404).json({ message: 'No merchant records found for this user' });
+      return res.status(404).json({ message: 'No merchant records found for this user.' });
     }
     return res.status(200).json(merchantData);
   } catch (error) {

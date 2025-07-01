@@ -50,7 +50,7 @@ exports.getWalletTransactions = async (req, res) => {
           as: 'user'
         }
       },
-      { $unwind: '$user' },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
       {
         $project: {
           _id: 1,
@@ -68,14 +68,14 @@ exports.getWalletTransactions = async (req, res) => {
       },
       { $sort: { createdAt: -1 } }
     ];
-
-    if (exportCsv !== 'true') {
+    
+    if (exportCsv != 'true') {
       pipeline.push(
         { $skip: (page - 1) * parseInt(limit) },
         { $limit: parseInt(limit) }
       );
     }
-
+    
     const transactions = await Transaction.aggregate(pipeline);
 
     if (exportCsv === 'true') {
@@ -102,6 +102,7 @@ exports.getWalletTransactions = async (req, res) => {
       { $match: match },
       { $count: 'total' }
     ];
+
     const totalResult = await Transaction.aggregate(totalPipeline);
     const total = totalResult.length > 0 ? totalResult[0].total : 0;
 
@@ -117,7 +118,6 @@ exports.getWalletTransactions = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };

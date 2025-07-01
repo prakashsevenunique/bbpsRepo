@@ -16,7 +16,7 @@ const dmtReportSchema = new mongoose.Schema({
     bc_share: { type: Number, required: true },
     txn_amount: { type: Number, required: true },
     customercharge: { type: Number, default: 0 },
-    gst: { type: Number, default: 0 },
+    gst: { type: Number, default: 0 }, 
     tds: { type: Number, default: 0 },
     netcommission: { type: Number, default: 0 },
   },
