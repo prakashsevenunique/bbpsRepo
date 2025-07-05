@@ -27,9 +27,9 @@ router.get('/recharge/browseplan', celebrate({
     })
 }), browsePlan);
 
-router.post('/recharge/dthPlan', authenticateToken, dthPlan);
+router.post('/recharge/dthPlan', dthPlan);
 
-router.get('/recharge/opertor', authenticateToken, getOperatorList);
+router.get('/recharge/opertor', getOperatorList);
 
 router.post('/recharge/dorecharge', celebrate({
     [Segments.BODY]: Joi.object().keys({
