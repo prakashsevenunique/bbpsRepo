@@ -393,6 +393,108 @@ const cancelTicket = async (req, res) => {
     });
   }
 };
+const paysprintCallback = async (req, res) => {
+  const data = req.body;
+  const event = data.event;
+  const param = data.param;
+
+  console.log("📢 Paysprint Callback Event:", event);
+  console.log("📢 Paysprint Callback data:", data);
+
+  const session = await startSession();
+  session.startTransaction();
+
+  try {
+    const userId = await getUserIdFromRefid(param.refid);
+    const user = await userModel.findById(userId).session(session);
+
+    if (!user) throw new Error("User not found");
+
+    // Debit (booking deduction)
+    if (event === "BUS_TICKET_BOOKING_DEBIT_CONFIRMATION") {
+      console.log("💸 Debit confirmation callback");
+
+      user.eWallet -= parseFloat(param.total_deduction || param.amount);
+      await user.save({ session });
+
+      await Transaction.create([{
+        user_id: userId,
+        transaction_type: "debit",
+        amount: parseFloat(param.total_deduction || param.amount),
+        balance_after: user.eWallet,
+        payment_mode: "wallet",
+        transaction_reference_id: param.refid,
+        description: `Bus ticket booking debit confirmed for blockId ${param.block_id}`,
+        status: "Success"
+      }], { session });
+
+      await bbpsModel.updateOne({ transactionId: param.refid }, { status: "Success" }).session(session);
+    }
+
+    // Credit (booking cancellation refund)
+    else if (event === "BUS_TICKET_BOOKING_CREDIT_CONFIRMATION") {
+      console.log("💰 Credit confirmation callback");
+
+      user.eWallet += parseFloat(param.total_deduction || param.amount);
+      await user.save({ session });
+
+      await Transaction.create([{
+        user_id: userId,
+        transaction_type: "credit",
+        amount: parseFloat(param.total_deduction || param.amount),
+        balance_after: user.eWallet,
+        payment_mode: "wallet",
+        transaction_reference_id: param.refid + "-refund",
+        description: `Bus ticket booking refund for blockId ${param.block_id}`,
+        status: "Success"
+      }], { session });
+
+      await bbpsModel.updateOne({ transactionId: param.refid }, { status: "Refunded" }).session(session);
+    }
+
+    // Ticket Confirmation (final booking success)
+    else if (event === "BUS_TICKET_BOOKING_CONFIRMATION") {
+      console.log("🎟️ Ticket final confirmation callback");
+
+      await bbpsModel.updateOne(
+        { transactionId: param.refid },
+        {
+          status: "Confirmed",
+          extraDetails: {
+            pnr_no: param.pnr_no,
+            blockKey: param.blockKey,
+            seatDetails: param.seat_details,
+          },
+        }
+      ).session(session);
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      status: 200,
+      message: "Transaction completed successfully"
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    console.error("❌ Callback error:", error.message);
+    return res.status(500).json({
+      status: "error",
+      message: error.message
+    });
+  }
+};
+
+// Helper function to get userId from refid (dummy logic, modify as per your system)
+async function getUserIdFromRefid(refid) {
+  const booking = await bbpsModel.findOne({ transactionId: refid });
+  if (booking) return booking.userId;
+  throw new Error("Booking not found for provided refid");
+}
+
 
 module.exports = {
   getSourceCities,
@@ -404,5 +506,6 @@ module.exports = {
   checkBookedTicket,
   getTicketDetails,
   getCancellationData,
-  cancelTicket
+  cancelTicket,
+  paysprintCallback
 };
