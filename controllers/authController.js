@@ -78,9 +78,6 @@ const loginController = async (req, res) => {
       user: {
         id: user._id,
         mobileNumber: user.mobileNumber,
-        isKycVerified: user.isKycVerified,
-        eWallet :user.eWallet,
-        name:user.name,email:user.email,
         token
       },
     });

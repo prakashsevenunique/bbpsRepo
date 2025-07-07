@@ -101,6 +101,7 @@ router.post(
     }), authenticateToken,
     busController.bookTicket
 );
+router.post('/callback/paysprint', busController.paysprintCallback);
 
 router.post("/check_booked_ticket", refidValidator, authenticateToken, busController.checkBookedTicket);
 
