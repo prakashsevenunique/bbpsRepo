@@ -13,23 +13,23 @@ const refidValidator = celebrate({
     }),
 });
 
-router.post('/recharge/hlrcheck', celebrate({
+router.post('/recharge/hlrcheck', authenticateToken, celebrate({
     [Segments.BODY]: Joi.object().keys({
         number: Joi.number().required(),
         type: Joi.string().required()
     })
 }), hlrCheck);
 
-router.get('/recharge/browseplan', celebrate({
+router.get('/recharge/browseplan', authenticateToken, celebrate({
     [Segments.QUERY]: Joi.object().keys({
         circle: Joi.string().required(),
         op: Joi.string().required()
     })
 }), browsePlan);
 
-router.post('/recharge/dthPlan', dthPlan);
+router.post('/recharge/dthPlan', authenticateToken, dthPlan);
 
-router.get('/recharge/opertor', getOperatorList);
+router.get('/recharge/opertor', authenticateToken, getOperatorList);
 
 router.post('/recharge/dorecharge', celebrate({
     [Segments.BODY]: Joi.object().keys({
@@ -48,9 +48,9 @@ router.get("/recharge/status/:transactionId", authenticateToken, celebrate({
 }), checkRechargeStatus)
 
 
-router.get('/bill/operators', getBillOperatorList);
+router.get('/bill/operators', authenticateToken, getBillOperatorList);
 
-router.post('/bill/details', fetchBillDetails);
+router.post('/bill/details', authenticateToken, fetchBillDetails);
 
 router.post('/bill/pay', authenticateToken, payBill);
 

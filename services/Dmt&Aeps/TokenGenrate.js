@@ -5,7 +5,7 @@ function generatePaysprintJWT() {
     const requestId = Math.floor(Math.random() * 1000000000);
     const payload = {
         timestamp: timestamp,
-        partnerId: 'PS001792',
+        partnerId: 'PS0016226',
         reqid: requestId.toString()
     };
     const token = jwt.sign(payload, 'UFMwMDE3OTIzYzdhYmFiZWU5OWJkMzAzNTEyNDQ0MmNmMGFiMWUyOA==', {
