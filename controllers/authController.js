@@ -9,6 +9,7 @@ const PayOut = require("../models/payOutModel.js");
 const AEPSWithdrawal = require("../models/aepsModels/withdrawalEntry.js");
 const DmtReport = require("../models/dmtTransactionModel.js");
 const BbpsHistory = require("../models/bbpsModel.js");
+const { default: axios } = require("axios");
 
 const sendOtpController = async (req, res) => {
   try {
@@ -86,13 +87,22 @@ const loginController = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 const registerUser = async (req, res) => {
   try {
-    const { name, email, mobileNumber, address, pinCode, mpin, role, distributorId } = req.body;
+    const {
+      name,
+      email,
+      mobileNumber,
+      address,
+      pinCode,
+      mpin,
+      role,
+      distributorId,
+      businessName,
+      businessType
+    } = req.body;
 
-    let user = await User.findOne({ email, mobileNumber });
-
+    let user = await User.findOne({ $or: [{ email }, { mobileNumber }] });
     if (user) {
       return res.status(400).json({ message: "User already exists" });
     }
@@ -101,14 +111,62 @@ const registerUser = async (req, res) => {
     if (!distributorId) {
       adminUser = await User.findOne({ role: 'Admin' });
     }
-    let NewUser = await User.create({ name, email, mobileNumber, address, pinCode, mpin, role , status: role == "User" ? true : false,  distributorId: distributorId ? distributorId : adminUser?._id });
 
-    let newUser = await NewUser.save();
-    const token = generateJwtToken(newUser._id, newUser.role, newUser.mobileNumber);
+    let shopPhotoPaths = [];
+    if (req.files?.shopPhoto) {
+      shopPhotoPaths = req.files.shopPhoto.map(file => `/uploads/${file.filename}`);
+    }
+
+    const ownerPhoto = req.files?.ownerPhoto ? `/uploads/${req.files.ownerPhoto[0].filename}` : "";
+
+    let newUserObj = {
+      name,
+      email,
+      mobileNumber,
+      address,
+      pinCode,
+      mpin,
+      role,
+      businessName,
+      businessType,
+      shopPhoto: shopPhotoPaths,
+      ownerPhoto,
+      status: role === "User" ? true : false,
+      distributorId: distributorId ? distributorId : adminUser?._id,
+    };
+
+    let NewUser = await User.create(newUserObj);
+    const token = generateJwtToken(NewUser._id, NewUser.role, NewUser.mobileNumber);
+
+    // ✅ Lead API call using axios
+    try {
+      const leadResponse = await axios.post(
+        "https://cms.sevenunique.com/apis/leads/set-leads.php",
+        {
+          website_id: 6,
+          name: NewUser.name,
+          mobile_number: NewUser.mobileNumber,
+          email: NewUser.email,
+          address:NewUser.address,
+          client_type:NewUser.role,
+          notes: "Lead from FinUnique small private limited",
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer jibhfiugh84t3324fefei#*fef",
+          },
+        }
+      );
+
+      console.log("Lead API Response:", leadResponse.data);
+    } catch (leadError) {
+      console.error("Error sending lead data:", leadError.response ? leadError.response.data : leadError.message);
+    }
 
     return res.status(200).json({
       message: "Registration successful",
-      newUser,
+      newUser: NewUser,
       token
     });
   } catch (error) {
@@ -116,6 +174,7 @@ const registerUser = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 const updateProfileController = async (req, res) => {
   try {

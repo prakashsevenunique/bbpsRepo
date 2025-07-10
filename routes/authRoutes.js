@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const upload = require('../utils/uplods.js');
 const {
   sendOtpController,
   verifyOTPController,
@@ -17,7 +18,15 @@ const authorizeRoles = require('../middleware/verifyRole.js');
 
 router.post('/send-otp', sendOtpController);
 router.post('/verify-otp', verifyOTPController);
-router.post('/register', registerUser);
+router.post(
+  '/register',
+  upload.fields([
+    { name: 'shopPhoto', maxCount: 6 },  // ✅ Multiple allowed
+    { name: 'ownerPhoto', maxCount: 1 }
+  ]),
+  registerUser
+);
+
 router.post('/login', loginController);
 router.put('/profile', authenticateToken, updateProfileController);
 router.get('/profile', authenticateToken, getUserController);

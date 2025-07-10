@@ -81,8 +81,8 @@ const submitAadharOTP = async (req, res) => {
         name: nameFromAadhar,
       });
     } else {
-      console.log("❌ Aadhaar verification failed response:", submitOtpResponse.data);
-      return res.send("Aadhaar verification failed");
+      console.log("❌ Aadhaar verification failed response:", submitOtpResponse.data.data);
+      return res.send("Aadhaar verification failed",submitOtpResponse.data);
     }
   } catch (error) {
     console.error("❌ Aadhaar OTP Submit Error:", error.response?.data || error.message);

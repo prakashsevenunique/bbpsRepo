@@ -21,6 +21,21 @@ const userSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
       match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    }, businessName: {
+      type: String,
+      trim: true,
+    },
+    businessType: {
+      type: String,
+      trim: true,
+    },
+   shopPhoto: {
+  type: [String], // ✅ Array of strings now
+  trim: true,
+},
+    ownerPhoto: {
+      type: String, // yahan owner photo ka URL save hoga
+      trim: true,
     },
     address: {
       fullAddress: {

@@ -6,6 +6,8 @@ const Transaction = require("../../models/transactionModel.js");
 const userModel = require("../../models/userModel.js");
 const mongoose = require("mongoose");
 const { getApplicableServiceCharge, applyServiceCharges, logApiCall } = require("../../utils/chargeCaluate.js");
+const { distributeCommission } = require("../../utils/distributerCommission.js");
+
 
 const headers = {
   'Token': generatePaysprintJWT(),
@@ -127,94 +129,115 @@ exports.getOperatorList = async (req, res, next) => {
   }
 };
 
+
+
+
+
+
+
+
+
 exports.doRecharge = async (req, res, next) => {
   const { operator: operatorName, canumber, amount, category, mpin } = req.body;
   const userId = req.user.id;
+
   if (!operatorName || !canumber || !amount || !category || !mpin) {
     return res.status(400).json({ status: "fail", message: "Missing required fields" });
   }
-  const referenceid = generateReferenceId();
+
+  const referenceid = `REF${Date.now()}`;
   const session = await mongoose.startSession();
   session.startTransaction();
-  try {
-    let commissions = await getApplicableServiceCharge(userId, category == "mobile" ? 'Mobile Recharge' : "Dth Recharge")
-    const charges = applyServiceCharges(amount, commissions)
-    const user = await userModel.findOne({ _id: userId, mpin }).session(session);
 
+  try {
+    console.log("🔁 Starting Recharge Flow...");
+
+    // ✅ Get service charges
+    const commissions = await getApplicableServiceCharge(userId, category === "mobile" ? "Mobile Recharge" : "Dth Recharge");
+    console.log("💰 Service charges & meta:", commissions);
+
+    // ✅ Apply base service charges
+    const charges = applyServiceCharges(amount, commissions);
+    console.log("💸 Charges applied:", charges);
+
+    // ✅ Check for slabs
+    let commission = { retailer: 0, distributor: 0, admin: 0, totalCommission: 0 };
+
+    if (commissions.slabs && commissions.slabs.length > 0) {
+      // Slabs present → calculate from slabs
+      commission = calculateCommissionFromSlabs(amount, commissions.slabs, commissions.gst || 18, commissions.tds || 5);
+      console.log("✅ Slab commission used:", commission);
+    } else {
+      // No slabs → fallback to service commissions
+      commission = {
+        retailer: 0,
+        distributor: commissions.distributorCommission||0,
+        admin: commissions.adminCommission || 0,
+        gst: 0,
+        tds: 0,
+        totalCommission: (commissions.distributorCommission|| 0) + (commissions.adminCommission || 0)
+      };
+      console.log("⚠️ Slabs not found. Using service commissions only:", commission);
+    }
+
+    const user = await userModel.findOne({ _id: userId, mpin }).session(session);
     if (!user || user.eWallet < (amount + charges.totalDeducted)) {
       throw new Error("Wrong mpin or Insufficient wallet balance");
     }
 
+    // ✅ Deduct from wallet
     user.eWallet -= (amount + charges.totalDeducted);
     await user.save({ session });
+    console.log("💳 Wallet debited. Balance:", user.eWallet);
 
-    const debitTxn = await Transaction.create(
-      [{
-        user_id: userId,
-        transaction_type: "debit",
-        amount: (amount + charges.totalDeducted),
-        balance_after: user.eWallet,
-        payment_mode: "wallet",
-        transaction_reference_id: referenceid,
-        description: `Recharge for ${canumber} (${operatorName})`,
-        status: "Pending"
-      }],
-      { session }
-    );
+    // ✅ Create debit transaction
+    const debitTxn = await Transaction.create([{
+      user_id: userId,
+      transaction_type: "debit",
+      amount: (amount + charges.totalDeducted),
+      balance_after: user.eWallet,
+      payment_mode: "wallet",
+      transaction_reference_id: referenceid,
+      description: `Recharge for ${canumber} (${operatorName})`,
+      status: "Pending"
+    }], { session });
+    console.log("📝 Debit transaction created:", debitTxn[0]._id);
 
-    const operatorRes = await axios.post(
-      "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator",
-      {},
-      { headers }
-    );
-
-    logApiCall({
-      url: "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator",
-
-      requestData: {},
-      responseData: operatorRes.data
-    });
-
+    // ✅ Get operator
+    const operatorRes = await axios.post("https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/getoperator", {}, { headers });
+    logApiCall({ url: "getoperator", requestData: {}, responseData: operatorRes.data });
+    console.log("🔎 Operator response:", operatorRes.data);
 
     if (operatorRes.data?.responsecode !== 1) {
       throw new Error("Operator lookup failed");
     }
 
-    const operator = operatorRes.data?.data?.find(
-      op => op.name.toLowerCase() === operatorName.toLowerCase()
-    );
+    const operator = operatorRes.data?.data?.find(op => op.name.toLowerCase() === operatorName.toLowerCase());
     if (!operator) throw new Error("Invalid operator name");
 
     const operatorId = operator.id;
 
-    const rechargeRecord = await BbpsHistory.create(
-      [{
-        userId,
-        rechargeType: category,
-        operator: operatorName,
-        customerNumber: canumber,
-        amount,
-        charges: charges.totalDeducted,
-        transactionId: referenceid,
-        extraDetails: { mobileNumber: canumber },
-        status: "Pending"
-      }],
-      { session }
-    );
-    
+    // ✅ Create recharge record
+    const rechargeRecord = await BbpsHistory.create([{
+      userId,
+      rechargeType: category,
+      operator: operatorName,
+      customerNumber: canumber,
+      amount,
+      charges: charges.totalDeducted,
+      transactionId: referenceid,
+      extraDetails: { mobileNumber: canumber },
+      status: "Pending"
+    }], { session });
+    console.log("🗂️ Recharge record created:", rechargeRecord[0]._id);
 
-    const rechargeRes = await axios.post(
-      "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/dorecharge",
-      { operator: operatorId, canumber, amount, referenceid },
-      { headers }
-    );
+    // ✅ Do recharge
+    const rechargeRes = await axios.post("https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/dorecharge", {
+      operator: operatorId, canumber, amount, referenceid
+    }, { headers });
 
-    logApiCall({
-      url: "https://sit.paysprint.in/service-api/api/v1/service/recharge/recharge/dorecharge",
-
-      requestData: req.body,
-      responseData: rechargeRes.data
-    });
+    logApiCall({ url: "dorecharge", requestData: req.body, responseData: rechargeRes.data });
+    console.log("📲 Recharge API response:", rechargeRes.data);
 
     const { response_code, message } = rechargeRes.data;
     let status = "Failed";
@@ -224,13 +247,17 @@ exports.doRecharge = async (req, res, next) => {
 
     rechargeRecord[0].status = status;
     await rechargeRecord[0].save({ session });
+    console.log("🔄 Recharge record status updated:", status);
 
     debitTxn[0].status = status;
     await debitTxn[0].save({ session });
+    console.log("✅ Transaction status updated:", status);
 
+    // ✅ Refund if failed
     if (status === "Failed") {
       user.eWallet += (amount + charges.totalDeducted);
       await user.save({ session });
+      console.log("💰 Refund completed. Wallet:", user.eWallet);
 
       await Transaction.create([{
         user_id: userId,
@@ -245,27 +272,42 @@ exports.doRecharge = async (req, res, next) => {
 
       rechargeRecord[0].status = "Refunded";
       await rechargeRecord[0].save({ session });
+      console.log("♻️ Recharge marked as refunded");
     }
+
+    // ✅ Create payout and distribute commission if success
     if (status === "Success") {
       const newPayOut = new PayOut({
         userId,
         amount,
         reference: referenceid,
         account: null,
-        trans_mode: "WALLET" || "IMPS",
+        trans_mode: "WALLET",
         ifsc: null,
         name: user.name,
         mobile: user.mobileNumber,
         email: user.email,
         status: "Success",
         charges: charges.totalDeducted,
-        remark: `Mobile Recharge for ${canumber}`
+        remark: `Recharge for ${canumber}`
       });
       await newPayOut.save({ session });
+      console.log("🏦 Payout entry created");
+
+      await distributeCommission({
+        distributer: user.distributorId,
+        service: category === "mobile" ? "Mobile Recharge" : "Dth Recharge",
+        amount,
+        commission,
+        reference: referenceid,
+        description: `Commission for recharge of ${canumber}`
+      });
+      console.log("💸 Commission distributed");
     }
 
     await session.commitTransaction();
     session.endSession();
+    console.log("✅ Recharge transaction committed successfully");
 
     return res.status(status === "Success" ? 200 : 400).json({
       status: status.toLowerCase(),
@@ -276,6 +318,7 @@ exports.doRecharge = async (req, res, next) => {
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
+    console.error("❌ Error in doRecharge:", err);
     return next(err);
   }
 };
